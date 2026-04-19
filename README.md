@@ -3,7 +3,7 @@
 A lightweight personal time, progress, and reflection tracker that runs entirely on your machine.
 No cloud account, no subscription — just a local Streamlit app backed by a SQLite database.
 
-![Architecture](../../figures/ai_generated/time_tracker_architecture.png)
+![Architecture](time_tracker_architecture.png)
 
 ---
 
