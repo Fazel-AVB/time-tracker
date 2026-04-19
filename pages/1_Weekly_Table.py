@@ -98,6 +98,13 @@ else:
 
     orig_rows_by_name = {row["Subject"]: dict(row) for _, row in edit_df.iterrows()}
 
+    for d in _DAY_ABBR:
+        if d in edit_df.columns:
+            edit_df[d] = edit_df[d].fillna(0.0)
+
+    # Add per-row Total column (computed, read-only)
+    edit_df["Total"] = edit_df[_DAY_ABBR].sum(axis=1)
+
     _col_cfg = {
         "Subject": st.column_config.TextColumn("Subject", required=True),
         "Low Label": st.column_config.TextColumn("Low Label"),
@@ -108,42 +115,69 @@ else:
             )
             for day in _DAY_ABBR
         },
+        "Total": st.column_config.NumberColumn("Total", format="%.2f"),
     }
 
     edited = st.data_editor(
         edit_df,
         column_config=_col_cfg,
+        disabled=["Total"],
         hide_index=True,
         use_container_width=True,
         num_rows="dynamic",
         key=f"pivot_editor_{week_start}",
     )
 
-    # Daily totals row — computed live from edited table
+    # DAILY TOTAL row — rendered as HTML so "DAILY TOTAL" can span the first
+    # three columns (Subject, Low Label, High Label) with a proper merged cell.
+    # Kept outside the editor so new rows always land above it.
     if edited is not None and len(edited) > 0:
-        day_totals = {d: float(edited[d].fillna(0).sum()) for d in _DAY_ABBR if d in edited.columns}
-        week_total = sum(day_totals.values())
-        totals_df = pd.DataFrame([{
-            "Subject": "DAILY TOTAL", "Low Label": "", "High Label": "",
-            **day_totals, "Week Total": week_total,
-        }])
+        subject_rows = edited[edited["Subject"].notna() & (edited["Subject"] != "")]
+        day_totals = {d: round(float(subject_rows[d].fillna(0).sum()), 2) for d in _DAY_ABBR if d in subject_rows.columns}
+        week_total = round(sum(day_totals.values()), 2)
 
-        def _style_totals(row):
-            return ["background-color:#7C3AED;color:#fff;font-weight:700;"] * len(row)
-
-        st.dataframe(
-            totals_df.style.apply(_style_totals, axis=1),
-            hide_index=True,
-            use_container_width=True,
+        header_cells = "".join(
+            f'<th style="text-align:right;padding:4px 10px;font-weight:600;color:#4C1D95;background:#EDE9FE;">{d}</th>'
+            for d in _DAY_ABBR
         )
+        day_cells = "".join(
+            f'<td style="text-align:right;padding:5px 10px;">{day_totals.get(d, 0.0):.2f}</td>'
+            for d in _DAY_ABBR
+        )
+        col_widths = (
+            '<col style="width:20%"><col style="width:12%"><col style="width:12%">'
+            + '<col style="width:7%">' * len(_DAY_ABBR)
+            + '<col style="width:7%">'
+        )
+        html_row = f"""
+<div style="margin-top:-12px;overflow-x:auto;">
+<table style="width:100%;border-collapse:collapse;font-family:sans-serif;font-size:14px;">
+  <colgroup>{col_widths}</colgroup>
+  <thead>
+    <tr>
+      <th colspan="3" style="background:#EDE9FE;padding:4px 10px;"></th>
+      {header_cells}
+      <th style="text-align:right;padding:4px 10px;font-weight:600;color:#4C1D95;background:#EDE9FE;">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background-color:#7C3AED;color:#fff;font-weight:700;">
+      <td colspan="3" style="text-align:center;padding:5px 10px;letter-spacing:0.05em;">DAILY TOTAL</td>
+      {day_cells}
+      <td style="text-align:right;padding:5px 10px;">{week_total:.2f}</td>
+    </tr>
+  </tbody>
+</table>
+</div>"""
+        st.markdown(html_row, unsafe_allow_html=True)
         st.caption(
             f"Week total: **{fmt_hours(week_total)}**  ·  "
-            "Edit any cell directly — click **+** to add a row, 🗑 to delete"
+            "Click **+** to add a row, hover a row and click 🗑 to delete"
         )
 
     # Excel download
     if edited is not None and len(edited) > 0:
-        dl_df = edited.copy()
+        dl_df = edited[edited["Subject"] != "DAILY TOTAL"].copy()
         dl_df["Total"] = dl_df[[d for d in _DAY_ABBR if d in dl_df.columns]].fillna(0).sum(axis=1)
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine="openpyxl") as writer:
@@ -162,6 +196,7 @@ else:
     if edited is not None:
         edit_rows_clean = edited.dropna(subset=["Subject"])
         edit_rows_clean = edit_rows_clean[edit_rows_clean["Subject"].str.strip() != ""]
+        edit_rows_clean = edit_rows_clean[edit_rows_clean["Subject"] != "DAILY TOTAL"]
 
         orig_names = set(orig_rows_by_name.keys())
         edit_names = set(edit_rows_clean["Subject"].tolist())
