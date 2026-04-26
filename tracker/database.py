@@ -20,6 +20,7 @@ class TimesheetDB:
         self._conn = sqlite3.connect(self._path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
+        self._migrate_subject_constraint()
         self._init_schema()
         return self
 
@@ -36,9 +37,10 @@ class TimesheetDB:
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS subjects (
                 id                INTEGER PRIMARY KEY AUTOINCREMENT,
-                name              TEXT NOT NULL UNIQUE,
+                name              TEXT NOT NULL,
                 low_level_label   TEXT NOT NULL,
-                high_level_label  TEXT NOT NULL
+                high_level_label  TEXT NOT NULL,
+                UNIQUE(name, low_level_label, high_level_label)
             );
 
             CREATE TABLE IF NOT EXISTS time_entries (
@@ -81,6 +83,63 @@ class TimesheetDB:
         """)
         self._conn.commit()
 
+    def _migrate_subject_constraint(self) -> None:
+        """Migrate existing DBs from UNIQUE(name) to UNIQUE(name, low_level_label, high_level_label).
+
+        Uses CREATE+DROP+RENAME instead of RENAME+CREATE to avoid SQLite rewriting
+        FK references in child tables (time_entries) to point at the temp table name.
+        Also repairs any DB left in the broken state by the old migration strategy.
+        """
+        # Repair: if a previous migration left time_entries referencing _subjects_old, rebuild it.
+        te_row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='time_entries'"
+        ).fetchone()
+        if te_row and '_subjects_old' in (te_row['sql'] or ''):
+            self._conn.executescript("""
+                PRAGMA foreign_keys = OFF;
+                CREATE TABLE _time_entries_new (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date           TEXT NOT NULL,
+                    subject_id     INTEGER NOT NULL
+                                   REFERENCES subjects(id) ON DELETE RESTRICT,
+                    duration_hours REAL NOT NULL CHECK(duration_hours > 0),
+                    notes          TEXT DEFAULT '',
+                    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                INSERT INTO _time_entries_new SELECT * FROM time_entries;
+                DROP TABLE time_entries;
+                ALTER TABLE _time_entries_new RENAME TO time_entries;
+                PRAGMA foreign_keys = ON;
+            """)
+            self._conn.commit()
+
+        # Migrate subjects if still on the old name-only UNIQUE constraint.
+        indices = self._conn.execute("PRAGMA index_list(subjects)").fetchall()
+        for idx in indices:
+            if idx["unique"]:
+                cols = self._conn.execute(
+                    f"PRAGMA index_info('{idx['name']}')"
+                ).fetchall()
+                if [c["name"] for c in cols] == ["name"]:
+                    # Create new table, copy, drop old, rename — so time_entries keeps
+                    # its REFERENCES subjects(id) without SQLite rewriting the FK target.
+                    self._conn.executescript("""
+                        PRAGMA foreign_keys = OFF;
+                        CREATE TABLE _subjects_new (
+                            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name              TEXT NOT NULL,
+                            low_level_label   TEXT NOT NULL,
+                            high_level_label  TEXT NOT NULL,
+                            UNIQUE(name, low_level_label, high_level_label)
+                        );
+                        INSERT INTO _subjects_new SELECT * FROM subjects;
+                        DROP TABLE subjects;
+                        ALTER TABLE _subjects_new RENAME TO subjects;
+                        PRAGMA foreign_keys = ON;
+                    """)
+                    self._conn.commit()
+                    return
+
     # ------------------------------------------------------------------ #
     # Subjects
     # ------------------------------------------------------------------ #
@@ -114,6 +173,13 @@ class TimesheetDB:
     def get_all_subjects(self) -> List[Subject]:
         rows = self._conn.execute(
             "SELECT * FROM subjects ORDER BY name"
+        ).fetchall()
+        return [_row_to_subject(r) for r in rows]
+
+    def get_subjects_by_name(self, name: str) -> List[Subject]:
+        rows = self._conn.execute(
+            "SELECT * FROM subjects WHERE name=? ORDER BY low_level_label",
+            (name,),
         ).fetchall()
         return [_row_to_subject(r) for r in rows]
 

@@ -161,7 +161,7 @@ with st.expander("Add a goal for next week"):
             "Target hours (leave 0 for qualitative goal)",
             min_value=0.0, max_value=168.0, step=0.5, value=0.0,
         )
-        subject_options = ["(none)"] + [s.name for s in subjects]
+        subject_options = ["(none)"] + [f"{s.name} · {s.low_level_label}" for s in subjects]
         goal_subject = st.selectbox(
             "Link to subject (optional — enables auto-evaluation)",
             subject_options,
@@ -175,7 +175,10 @@ with st.expander("Add a goal for next week"):
         else:
             linked_subject = None
             if goal_subject != "(none)":
-                linked = next((s for s in subjects if s.name == goal_subject), None)
+                linked = next(
+                    (s for s in subjects if f"{s.name} · {s.low_level_label}" == goal_subject),
+                    None,
+                )
                 linked_subject = linked.id if linked else None
 
             with TimesheetDB(DB_PATH) as db:

@@ -99,7 +99,7 @@ def week_pivot(entries: List[TimeEntry], week_start: date) -> pd.DataFrame:
 
     pivot = pivot[["Subject", "Low Label", "High Label"] + _DAY_ABBR]
     pivot["Total"] = pivot[_DAY_ABBR].sum(axis=1)
-    return pivot.sort_values("Total", ascending=False).reset_index(drop=True)
+    return pivot.sort_values(["High Label", "Low Label"]).reset_index(drop=True)
 
 
 # ------------------------------------------------------------------ #

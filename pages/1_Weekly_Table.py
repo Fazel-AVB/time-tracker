@@ -74,7 +74,10 @@ with TimesheetDB(DB_PATH) as db:
     subjects = db.get_all_subjects()
     entries = db.get_entries_for_week(week_start)
 
-subject_by_name = {s.name: s for s in subjects}
+subject_by_key = {(s.name, s.low_level_label, s.high_level_label): s for s in subjects}
+subject_by_id = {s.id: s for s in subjects}
+subject_display_labels = sorted(f"{s.name} · {s.low_level_label}" for s in subjects)
+subject_by_display = {f"{s.name} · {s.low_level_label}": s for s in subjects}
 
 # ------------------------------------------------------------------ #
 # Pivot table (editable)
@@ -86,17 +89,42 @@ _EDIT_COLS = ["Subject", "Low Label", "High Label"] + _DAY_ABBR
 if not subjects:
     st.info("No subjects defined yet.  Add a subject below to get started.")
 else:
-    if pivot_df.empty:
-        edit_df = pd.DataFrame([{
-            "Subject": s.name,
-            "Low Label": s.low_level_label,
-            "High Label": s.high_level_label,
-            **{d: 0.0 for d in _DAY_ABBR},
-        } for s in subjects])
-    else:
-        edit_df = pivot_df[_EDIT_COLS].copy()
+    # Subjects that have at least one entry this week come first;
+    # subjects with no entries stay at the bottom so newly-saved subjects
+    # don't jump to an alphabetical middle position before hours are logged.
+    _subjects_with_entries = {e.subject_id for e in entries}
+    _ordered_subjects = (
+        [s for s in subjects if s.id in _subjects_with_entries] +
+        [s for s in subjects if s.id not in _subjects_with_entries]
+    )
+    all_subjects_df = pd.DataFrame([{
+        "Subject": s.name,
+        "Low Label": s.low_level_label,
+        "High Label": s.high_level_label,
+        **{d: 0.0 for d in _DAY_ABBR},
+    } for s in _ordered_subjects])
 
-    orig_rows_by_name = {row["Subject"]: dict(row) for _, row in edit_df.iterrows()}
+    if pivot_df.empty:
+        edit_df = all_subjects_df
+    else:
+        pivot_subset = pivot_df[_EDIT_COLS].copy()
+        edit_df = all_subjects_df.merge(
+            pivot_subset,
+            on=["Subject", "Low Label", "High Label"],
+            how="left",
+            suffixes=("_base", ""),
+        )
+        for d in _DAY_ABBR:
+            col_base = f"{d}_base"
+            if col_base in edit_df.columns:
+                edit_df[d] = edit_df[d].fillna(edit_df[col_base])
+                edit_df.drop(columns=[col_base], inplace=True)
+            edit_df[d] = edit_df[d].fillna(0.0)
+
+    orig_rows_by_key = {
+        (row["Subject"], row["Low Label"], row["High Label"]): dict(row)
+        for _, row in edit_df.iterrows()
+    }
 
     for d in _DAY_ABBR:
         if d in edit_df.columns:
@@ -104,6 +132,19 @@ else:
 
     # Add per-row Total column (computed, read-only)
     edit_df["Total"] = edit_df[_DAY_ABBR].sum(axis=1)
+
+    # Sort only rows that are fully complete: Subject + Low Label + High Label + at least one hour.
+    # Everything else keeps its original order at the bottom, so partial rows never jump.
+    _is_complete = (
+        edit_df["Subject"].notna() & (edit_df["Subject"].str.strip() != "") &
+        edit_df["Low Label"].notna() & (edit_df["Low Label"].str.strip() != "") &
+        edit_df["High Label"].notna() & (edit_df["High Label"].str.strip() != "") &
+        (edit_df["Total"] > 0)
+    )
+    edit_df = pd.concat([
+        edit_df[_is_complete].sort_values(["High Label", "Low Label"]),
+        edit_df[~_is_complete],
+    ]).reset_index(drop=True)
 
     _col_cfg = {
         "Subject": st.column_config.TextColumn("Subject", required=True),
@@ -198,32 +239,46 @@ else:
         edit_rows_clean = edit_rows_clean[edit_rows_clean["Subject"].str.strip() != ""]
         edit_rows_clean = edit_rows_clean[edit_rows_clean["Subject"] != "DAILY TOTAL"]
 
-        orig_names = set(orig_rows_by_name.keys())
-        edit_names = set(edit_rows_clean["Subject"].tolist())
+        orig_keys = set(orig_rows_by_key.keys())
+        edit_keys = set(zip(
+            edit_rows_clean["Subject"],
+            edit_rows_clean["Low Label"].fillna(""),
+            edit_rows_clean["High Label"].fillna(""),
+        ))
 
-        added_names = edit_names - orig_names
-        removed_names = orig_names - edit_names
-        kept_names = orig_names & edit_names
+        removed_keys = orig_keys - edit_keys
+        raw_added_keys = edit_keys - orig_keys
+        kept_keys = orig_keys & edit_keys
+
+        # If an "added" key already exists in the DB, treat it as kept
+        truly_added = set()
+        for key in raw_added_keys:
+            if subject_by_key.get(key):
+                kept_keys.add(key)
+            else:
+                truly_added.add(key)
 
         needs_rerun = False
 
         with TimesheetDB(DB_PATH) as db:
-            for name in removed_names:
-                subj = subject_by_name.get(name)
+            for key in removed_keys:
+                subj = subject_by_key.get(key)
                 if subj:
                     try:
                         db.delete_subject(subj.id)
                         needs_rerun = True
                     except Exception:
                         st.warning(
-                            f"Cannot delete **{name}** — it has existing time entries. "
+                            f"Cannot delete **{key[0]}** — it has existing time entries. "
                             "Delete those entries first from the section below."
                         )
 
-            for name in added_names:
-                row = edit_rows_clean[edit_rows_clean["Subject"] == name].iloc[0]
-                low = str(row.get("Low Label") or "")
-                high = str(row.get("High Label") or "")
+            for key in truly_added:
+                name, low, high = key
+                # Wait until all three fields are filled before saving to DB,
+                # so partial rows don't trigger premature reruns and sorting jumps.
+                if not name.strip() or not low.strip() or not high.strip():
+                    continue
                 try:
                     db.add_subject(Subject(
                         name=name.strip(),
@@ -234,20 +289,21 @@ else:
                 except Exception as exc:
                     st.error(f"Could not add subject '{name}': {exc}")
 
-            for name in kept_names:
-                subj = subject_by_name[name]
-                row = edit_rows_clean[edit_rows_clean["Subject"] == name].iloc[0]
-                orig = orig_rows_by_name[name]
-
-                new_low = str(row.get("Low Label") or subj.low_level_label)
-                new_high = str(row.get("High Label") or subj.high_level_label)
-                if new_low != subj.low_level_label or new_high != subj.high_level_label:
-                    db.update_subject(Subject(
-                        id=subj.id, name=name,
-                        low_level_label=new_low,
-                        high_level_label=new_high,
-                    ))
-                    needs_rerun = True
+            for key in kept_keys:
+                subj = subject_by_key.get(key)
+                if not subj:
+                    continue
+                name, low, high = key
+                mask = (
+                    (edit_rows_clean["Subject"] == name) &
+                    (edit_rows_clean["Low Label"].fillna("") == low) &
+                    (edit_rows_clean["High Label"].fillna("") == high)
+                )
+                row_matches = edit_rows_clean[mask]
+                if row_matches.empty:
+                    continue
+                row = row_matches.iloc[0]
+                orig = orig_rows_by_key[key]
 
                 for day_idx, day in enumerate(_DAY_ABBR):
                     new_val = float(row.get(day) or 0)
@@ -281,8 +337,7 @@ with col_log:
         st.warning("Add at least one subject (right panel) before logging time.")
     else:
         with st.form("add_entry_form", clear_on_submit=True):
-            subject_names = sorted(subject_by_name.keys())
-            subj_choice = st.selectbox("Subject", subject_names)
+            subj_choice = st.selectbox("Subject", subject_display_labels)
             entry_date = st.date_input(
                 "Date", value=date.today(),
                 min_value=week_start, max_value=week_end,
@@ -297,7 +352,7 @@ with col_log:
             if duration <= 0:
                 st.error("Duration must be greater than 0.")
             else:
-                subj = subject_by_name[subj_choice]
+                subj = subject_by_display[subj_choice]
                 with TimesheetDB(DB_PATH) as db:
                     db.add_entry(TimeEntry(
                         date=entry_date,
@@ -320,13 +375,51 @@ with col_subj:
         if not new_name or not new_low or not new_high:
             st.error("All three fields are required.")
         else:
+            n, l, h = new_name.strip(), new_low.strip(), new_high.strip()
+            same_name_different_labels = [
+                s for s in subjects
+                if s.name.lower() == n.lower()
+                and not (s.low_level_label == l and s.high_level_label == h)
+            ]
+            if same_name_different_labels:
+                st.session_state.pending_subject = {"name": n, "low": l, "high": h}
+            else:
+                try:
+                    with TimesheetDB(DB_PATH) as db:
+                        db.add_subject(Subject(name=n, low_level_label=l, high_level_label=h))
+                    st.success(f"Subject '{n}' added.")
+                    st.session_state.pop("pending_subject", None)
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Could not add subject: {exc}")
+
+    pending = st.session_state.get("pending_subject")
+    if pending:
+        same_name = [s for s in subjects if s.name.lower() == pending["name"].lower()]
+        st.warning(f"**'{pending['name']}'** already exists under the following label combination(s):")
+        for s in same_name:
+            st.caption(f"• Low: **{s.low_level_label}**  ·  High: **{s.high_level_label}**")
+        st.caption(
+            "Check if one of these covers your current task — if so, select it in the Log Time form. "
+            "Otherwise, confirm below to add it with the new labels."
+        )
+        pc1, pc2 = st.columns(2)
+        if pc1.button("Add anyway", use_container_width=True):
             try:
                 with TimesheetDB(DB_PATH) as db:
-                    db.add_subject(Subject(name=new_name, low_level_label=new_low, high_level_label=new_high))
-                st.success(f"Subject '{new_name}' added.")
-                st.rerun()
+                    db.add_subject(Subject(
+                        name=pending["name"],
+                        low_level_label=pending["low"],
+                        high_level_label=pending["high"],
+                    ))
+                st.success(f"Subject '{pending['name']}' added.")
             except Exception as exc:
                 st.error(f"Could not add subject: {exc}")
+            st.session_state.pop("pending_subject", None)
+            st.rerun()
+        if pc2.button("Cancel", use_container_width=True):
+            st.session_state.pop("pending_subject", None)
+            st.rerun()
 
     if subjects:
         with st.expander("Existing subjects"):
@@ -375,13 +468,19 @@ else:
     }
     selected_label = st.selectbox("Select entry to edit", list(entry_options.keys()))
     sel = entry_options[selected_label]
-    subject_names = sorted(subject_by_name.keys())
+
+    sel_subj = subject_by_id.get(sel.subject_id)
+    sel_display = (
+        f"{sel_subj.name} · {sel_subj.low_level_label}"
+        if sel_subj and f"{sel_subj.name} · {sel_subj.low_level_label}" in subject_by_display
+        else (subject_display_labels[0] if subject_display_labels else "")
+    )
 
     with st.form("edit_entry_form"):
         edit_subj = st.selectbox(
-            "Subject", subject_names,
-            index=subject_names.index(sel.subject_name)
-            if sel.subject_name in subject_names else 0,
+            "Subject", subject_display_labels,
+            index=subject_display_labels.index(sel_display)
+            if sel_display in subject_display_labels else 0,
         )
         edit_date = st.date_input("Date", value=sel.date)
         edit_dur = st.number_input(
@@ -395,7 +494,7 @@ else:
         if edit_dur <= 0:
             st.error("Duration must be greater than 0.")
         else:
-            subj = subject_by_name[edit_subj]
+            subj = subject_by_display[edit_subj]
             with TimesheetDB(DB_PATH) as db:
                 db.update_entry(TimeEntry(
                     id=sel.id,
