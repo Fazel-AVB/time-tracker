@@ -128,6 +128,61 @@ class TestTimeEntries:
         entries = db.get_entries_for_week(week)
         assert len(entries) == 2
 
+    def test_delete_entries_for_subject_in_week_leaves_other_weeks(self, db, subject, week):
+        next_week = week + timedelta(weeks=1)
+        db.add_entry(TimeEntry(date=week, subject_id=subject.id, duration_hours=1.0))
+        db.add_entry(TimeEntry(date=next_week, subject_id=subject.id, duration_hours=2.0))
+        db.delete_entries_for_subject_in_week(subject.id, week)
+        assert db.get_entries_for_week(week) == []
+        assert len(db.get_entries_for_week(next_week)) == 1
+
+    def test_delete_entries_for_subject_in_week_does_not_delete_subject(self, db, subject, week):
+        db.add_entry(TimeEntry(date=week, subject_id=subject.id, duration_hours=1.0))
+        db.delete_entries_for_subject_in_week(subject.id, week)
+        assert db.get_subject(subject.id) is not None
+
+    def test_delete_entries_for_subject_in_week_noop_when_empty(self, db, subject, week):
+        db.delete_entries_for_subject_in_week(subject.id, week)  # no entries — should not raise
+        assert db.get_entries_for_week(week) == []
+
+
+# ------------------------------------------------------------------ #
+# Week-subject exclusions
+# ------------------------------------------------------------------ #
+
+class TestWeekSubjectExclusions:
+    def test_add_and_get_exclusion(self, db, subject, week):
+        db.add_week_exclusion(week, subject.id)
+        assert subject.id in db.get_excluded_subject_ids(week)
+
+    def test_exclusion_is_week_scoped(self, db, subject, week):
+        next_week = week + timedelta(weeks=1)
+        db.add_week_exclusion(week, subject.id)
+        assert subject.id not in db.get_excluded_subject_ids(next_week)
+
+    def test_remove_exclusion(self, db, subject, week):
+        db.add_week_exclusion(week, subject.id)
+        db.remove_week_exclusion(week, subject.id)
+        assert subject.id not in db.get_excluded_subject_ids(week)
+
+    def test_add_exclusion_idempotent(self, db, subject, week):
+        db.add_week_exclusion(week, subject.id)
+        db.add_week_exclusion(week, subject.id)  # should not raise
+        assert len(db.get_excluded_subject_ids(week)) == 1
+
+    def test_remove_nonexistent_exclusion_is_noop(self, db, subject, week):
+        db.remove_week_exclusion(week, subject.id)  # should not raise
+        assert subject.id not in db.get_excluded_subject_ids(week)
+
+    def test_exclusion_cascades_on_subject_delete(self, db, subject, week):
+        db.add_week_exclusion(week, subject.id)
+        # Need to remove entries first (FK on time_entries is RESTRICT, but exclusions are CASCADE)
+        db.delete_subject(subject.id)
+        assert subject.id not in db.get_excluded_subject_ids(week)
+
+    def test_empty_exclusions_returns_empty_set(self, db, week):
+        assert db.get_excluded_subject_ids(week) == set()
+
 
 # ------------------------------------------------------------------ #
 # Reflections
