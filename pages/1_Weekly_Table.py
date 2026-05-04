@@ -99,12 +99,15 @@ else:
         [s for s in subjects if s.id in _subjects_this_week] +
         [s for s in subjects if s.id in _subjects_prev_week and s.id not in _subjects_this_week]
     )
-    all_subjects_df = pd.DataFrame([{
-        "Subject": s.name,
-        "Low Label": s.low_level_label,
-        "High Label": s.high_level_label,
-        **{d: 0.0 for d in _DAY_ABBR},
-    } for s in _ordered_subjects])
+    all_subjects_df = pd.DataFrame(
+        [{
+            "Subject": s.name,
+            "Low Label": s.low_level_label,
+            "High Label": s.high_level_label,
+            **{d: 0.0 for d in _DAY_ABBR},
+        } for s in _ordered_subjects],
+        columns=["Subject", "Low Label", "High Label"] + _DAY_ABBR,
+    )
 
     if pivot_df.empty:
         edit_df = all_subjects_df
