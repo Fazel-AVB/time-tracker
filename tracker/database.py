@@ -80,6 +80,12 @@ class TimesheetDB:
                 notes        TEXT DEFAULT '',
                 evaluated_at TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS week_subject_exclusions (
+                week_start TEXT    NOT NULL,
+                subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+                PRIMARY KEY (week_start, subject_id)
+            );
         """)
         self._conn.commit()
 
@@ -218,6 +224,31 @@ class TimesheetDB:
             (subject_id, week_start.isoformat(), week_end.isoformat()),
         )
         self._conn.commit()
+
+    # ------------------------------------------------------------------ #
+    # Week-subject exclusions
+    # ------------------------------------------------------------------ #
+
+    def add_week_exclusion(self, week_start: date, subject_id: int) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO week_subject_exclusions (week_start, subject_id) VALUES (?, ?)",
+            (week_start.isoformat(), subject_id),
+        )
+        self._conn.commit()
+
+    def remove_week_exclusion(self, week_start: date, subject_id: int) -> None:
+        self._conn.execute(
+            "DELETE FROM week_subject_exclusions WHERE week_start=? AND subject_id=?",
+            (week_start.isoformat(), subject_id),
+        )
+        self._conn.commit()
+
+    def get_excluded_subject_ids(self, week_start: date) -> set:
+        rows = self._conn.execute(
+            "SELECT subject_id FROM week_subject_exclusions WHERE week_start=?",
+            (week_start.isoformat(),),
+        ).fetchall()
+        return {r["subject_id"] for r in rows}
 
     def get_entries_for_week(self, week_start: date) -> List[TimeEntry]:
         week_end = week_start + timedelta(days=7)

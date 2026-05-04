@@ -74,6 +74,7 @@ with TimesheetDB(DB_PATH) as db:
     subjects = db.get_all_subjects()
     entries = db.get_entries_for_week(week_start)
     prev_entries = db.get_entries_for_week(week_start - timedelta(weeks=1))
+    excluded_ids = db.get_excluded_subject_ids(week_start)
 
 subject_by_key = {(s.name, s.low_level_label, s.high_level_label): s for s in subjects}
 subject_by_id = {s.id: s for s in subjects}
@@ -96,8 +97,9 @@ else:
     _subjects_this_week = {e.subject_id for e in entries}
     _subjects_prev_week = {e.subject_id for e in prev_entries}
     _ordered_subjects = (
-        [s for s in subjects if s.id in _subjects_this_week] +
-        [s for s in subjects if s.id in _subjects_prev_week and s.id not in _subjects_this_week]
+        [s for s in subjects if s.id in _subjects_this_week and s.id not in excluded_ids] +
+        [s for s in subjects if s.id in _subjects_prev_week
+         and s.id not in _subjects_this_week and s.id not in excluded_ids]
     )
     all_subjects_df = pd.DataFrame(
         [{
@@ -270,6 +272,7 @@ else:
                 subj = subject_by_key.get(key)
                 if subj:
                     db.delete_entries_for_subject_in_week(subj.id, week_start)
+                    db.add_week_exclusion(week_start, subj.id)
                     needs_rerun = True
 
             for key in truly_added:
@@ -292,6 +295,7 @@ else:
                 subj = subject_by_key.get(key)
                 if not subj:
                     continue
+                db.remove_week_exclusion(week_start, subj.id)
                 name, low, high = key
                 mask = (
                     (edit_rows_clean["Subject"] == name) &
@@ -338,7 +342,8 @@ else:
             subj_choice = st.selectbox("Subject", subject_display_labels)
         with col_b:
             entry_date = st.date_input(
-                "Date", value=date.today(),
+                "Date",
+                value=max(week_start, min(date.today(), week_end)),
                 min_value=week_start, max_value=week_end,
             )
         with col_c:
