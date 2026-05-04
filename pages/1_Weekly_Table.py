@@ -299,11 +299,11 @@ else:
                 if row_matches.empty:
                     continue
                 row = row_matches.iloc[0]
-                orig = orig_rows_by_key[key]
+                orig = orig_rows_by_key.get(key)
 
                 for day_idx, day in enumerate(_DAY_ABBR):
                     new_val = float(row.get(day) or 0)
-                    old_val = float(orig.get(day) or 0)
+                    old_val = float(orig.get(day) or 0) if orig else 0.0
                     if abs(new_val - old_val) > 0.001:
                         entry_date = week_start + timedelta(days=day_idx)
                         for e in [e for e in entries if e.subject_id == subj.id and e.date == entry_date]:
