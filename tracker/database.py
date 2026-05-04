@@ -207,6 +207,18 @@ class TimesheetDB:
         self._conn.execute("DELETE FROM time_entries WHERE id=?", (entry_id,))
         self._conn.commit()
 
+    def delete_entries_for_subject(self, subject_id: int) -> None:
+        self._conn.execute("DELETE FROM time_entries WHERE subject_id=?", (subject_id,))
+        self._conn.commit()
+
+    def delete_entries_for_subject_in_week(self, subject_id: int, week_start: date) -> None:
+        week_end = week_start + timedelta(days=7)
+        self._conn.execute(
+            "DELETE FROM time_entries WHERE subject_id=? AND date >= ? AND date < ?",
+            (subject_id, week_start.isoformat(), week_end.isoformat()),
+        )
+        self._conn.commit()
+
     def get_entries_for_week(self, week_start: date) -> List[TimeEntry]:
         week_end = week_start + timedelta(days=7)
         rows = self._conn.execute(

@@ -73,6 +73,7 @@ week_end: date = week_start + timedelta(days=6)
 with TimesheetDB(DB_PATH) as db:
     subjects = db.get_all_subjects()
     entries = db.get_entries_for_week(week_start)
+    prev_entries = db.get_entries_for_week(week_start - timedelta(weeks=1))
 
 subject_by_key = {(s.name, s.low_level_label, s.high_level_label): s for s in subjects}
 subject_by_id = {s.id: s for s in subjects}
@@ -87,15 +88,16 @@ pivot_df = week_pivot(entries, week_start)
 _EDIT_COLS = ["Subject", "Low Label", "High Label"] + _DAY_ABBR
 
 if not subjects:
-    st.info("No subjects defined yet.  Add a subject below to get started.")
+    st.info("No subjects defined yet. Click **+** at the bottom of the table to add your first subject.")
 else:
-    # Subjects that have at least one entry this week come first;
-    # subjects with no entries stay at the bottom so newly-saved subjects
-    # don't jump to an alphabetical middle position before hours are logged.
-    _subjects_with_entries = {e.subject_id for e in entries}
+    # Only show subjects active this week or last week.
+    # Subjects from further back are hidden to keep the table clean;
+    # the user can add them manually via the + row.
+    _subjects_this_week = {e.subject_id for e in entries}
+    _subjects_prev_week = {e.subject_id for e in prev_entries}
     _ordered_subjects = (
-        [s for s in subjects if s.id in _subjects_with_entries] +
-        [s for s in subjects if s.id not in _subjects_with_entries]
+        [s for s in subjects if s.id in _subjects_this_week] +
+        [s for s in subjects if s.id in _subjects_prev_week and s.id not in _subjects_this_week]
     )
     all_subjects_df = pd.DataFrame([{
         "Subject": s.name,
@@ -264,14 +266,8 @@ else:
             for key in removed_keys:
                 subj = subject_by_key.get(key)
                 if subj:
-                    try:
-                        db.delete_subject(subj.id)
-                        needs_rerun = True
-                    except Exception:
-                        st.warning(
-                            f"Cannot delete **{key[0]}** — it has existing time entries. "
-                            "Delete those entries first from the section below."
-                        )
+                    db.delete_entries_for_subject_in_week(subj.id, week_start)
+                    needs_rerun = True
 
             for key in truly_added:
                 name, low, high = key
@@ -326,112 +322,44 @@ else:
 st.divider()
 
 # ------------------------------------------------------------------ #
-# Log time  |  Manage subjects
+# Log time
 # ------------------------------------------------------------------ #
 
-col_log, col_subj = st.columns(2)
-
-with col_log:
-    st.subheader("Log Time")
-    if not subjects:
-        st.warning("Add at least one subject (right panel) before logging time.")
-    else:
-        with st.form("add_entry_form", clear_on_submit=True):
+st.subheader("Log Time")
+if not subjects:
+    st.info("Add a subject row in the table above (click **+**) to get started.")
+else:
+    with st.form("add_entry_form", clear_on_submit=True):
+        col_a, col_b, col_c, col_d = st.columns([3, 2, 2, 3])
+        with col_a:
             subj_choice = st.selectbox("Subject", subject_display_labels)
+        with col_b:
             entry_date = st.date_input(
                 "Date", value=date.today(),
                 min_value=week_start, max_value=week_end,
             )
+        with col_c:
             duration = st.number_input(
                 "Duration (hours)", min_value=0.0, max_value=24.0, step=0.25, value=1.0
             )
+        with col_d:
             notes = st.text_input("Notes (optional)")
-            submitted = st.form_submit_button("Add Entry", use_container_width=True)
+        submitted = st.form_submit_button("Add Entry", use_container_width=True)
 
-        if submitted:
-            if duration <= 0:
-                st.error("Duration must be greater than 0.")
-            else:
-                subj = subject_by_display[subj_choice]
-                with TimesheetDB(DB_PATH) as db:
-                    db.add_entry(TimeEntry(
-                        date=entry_date,
-                        subject_id=subj.id,
-                        duration_hours=duration,
-                        notes=notes,
-                    ))
-                st.success(f"Logged {fmt_hours(duration)} for **{subj_choice}** on {entry_date}.")
-                st.rerun()
-
-with col_subj:
-    st.subheader("Manage Subjects")
-    with st.form("add_subject_form", clear_on_submit=True):
-        new_name = st.text_input("Subject name", placeholder="e.g. Programming")
-        new_low = st.text_input("Low-level label", placeholder="e.g. work-related")
-        new_high = st.text_input("High-level label", placeholder="e.g. Work")
-        add_subj = st.form_submit_button("Add Subject", use_container_width=True)
-
-    if add_subj:
-        if not new_name or not new_low or not new_high:
-            st.error("All three fields are required.")
+    if submitted:
+        if duration <= 0:
+            st.error("Duration must be greater than 0.")
         else:
-            n, l, h = new_name.strip(), new_low.strip(), new_high.strip()
-            same_name_different_labels = [
-                s for s in subjects
-                if s.name.lower() == n.lower()
-                and not (s.low_level_label == l and s.high_level_label == h)
-            ]
-            if same_name_different_labels:
-                st.session_state.pending_subject = {"name": n, "low": l, "high": h}
-            else:
-                try:
-                    with TimesheetDB(DB_PATH) as db:
-                        db.add_subject(Subject(name=n, low_level_label=l, high_level_label=h))
-                    st.success(f"Subject '{n}' added.")
-                    st.session_state.pop("pending_subject", None)
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Could not add subject: {exc}")
-
-    pending = st.session_state.get("pending_subject")
-    if pending:
-        same_name = [s for s in subjects if s.name.lower() == pending["name"].lower()]
-        st.warning(f"**'{pending['name']}'** already exists under the following label combination(s):")
-        for s in same_name:
-            st.caption(f"• Low: **{s.low_level_label}**  ·  High: **{s.high_level_label}**")
-        st.caption(
-            "Check if one of these covers your current task — if so, select it in the Log Time form. "
-            "Otherwise, confirm below to add it with the new labels."
-        )
-        pc1, pc2 = st.columns(2)
-        if pc1.button("Add anyway", use_container_width=True):
-            try:
-                with TimesheetDB(DB_PATH) as db:
-                    db.add_subject(Subject(
-                        name=pending["name"],
-                        low_level_label=pending["low"],
-                        high_level_label=pending["high"],
-                    ))
-                st.success(f"Subject '{pending['name']}' added.")
-            except Exception as exc:
-                st.error(f"Could not add subject: {exc}")
-            st.session_state.pop("pending_subject", None)
+            subj = subject_by_display[subj_choice]
+            with TimesheetDB(DB_PATH) as db:
+                db.add_entry(TimeEntry(
+                    date=entry_date,
+                    subject_id=subj.id,
+                    duration_hours=duration,
+                    notes=notes,
+                ))
+            st.success(f"Logged {fmt_hours(duration)} for **{subj_choice}** on {entry_date}.")
             st.rerun()
-        if pc2.button("Cancel", use_container_width=True):
-            st.session_state.pop("pending_subject", None)
-            st.rerun()
-
-    if subjects:
-        with st.expander("Existing subjects"):
-            st.dataframe(
-                pd.DataFrame([{
-                    "Name": s.name,
-                    "Low Label": s.low_level_label,
-                    "High Label": s.high_level_label,
-                } for s in subjects]),
-                use_container_width=True,
-                hide_index=True,
-            )
 
 st.divider()
 
