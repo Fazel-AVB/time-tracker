@@ -9,6 +9,11 @@ Run with:
 
 import streamlit as st
 
+from tracker import default_db_path, default_export_dir
+from tracker.export_prompt import render_week_export_prompt
+
+DB_PATH = default_db_path()
+
 st.set_page_config(
     page_title="Time Tracker",
     page_icon="⏱",
@@ -41,6 +46,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("Personal Time, Progress & Reflection Tracker")
+render_week_export_prompt(DB_PATH, default_export_dir())
 
 st.markdown("""
 A lightweight weekly self-tracking tool with four pages:

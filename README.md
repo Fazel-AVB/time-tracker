@@ -28,7 +28,7 @@ All data is stored locally in `data/timesheet.db` (SQLite). Nothing leaves your 
 - The packages listed in `requirements.txt`:
 
 ```
-streamlit>=1.28
+streamlit>=1.56
 pandas>=2.0
 plotly>=5.0
 openpyxl>=3.1
@@ -74,10 +74,10 @@ The app opens automatically in your browser at `http://localhost:8501`.
 
 ## Windows desktop shortcut
 
-The repo includes two helper files to launch the app without opening a terminal:
+The repo includes two helper files to launch the app without typing commands:
 
-- `launch.bat` — starts the Streamlit server
-- `launch.vbs` — runs `launch.bat` silently (no console window)
+- `launch.vbs` — starts the app and opens it in your browser. A console window stays open while the app runs (it shows any error); close it to stop the app.
+- `launch.bat` — the same, and falls back to the `py` launcher if `python` is not on PATH.
 - `time_tracker.ico` — app icon
 
 To create a desktop shortcut with the custom icon:
@@ -90,7 +90,7 @@ To create a desktop shortcut with the custom icon:
 
 Double-clicking the shortcut will start the app and open it in your default browser automatically.
 
-> **Note:** Your Python environment must have the dependencies installed and be on the system PATH (or you can edit `launch.bat` to activate your virtual environment first).
+> **Note:** the Python that `python` resolves to must have the dependencies installed. If you use a virtual environment, activate it in `launch.bat` before the `streamlit` line.
 
 ---
 

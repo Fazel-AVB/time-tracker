@@ -11,11 +11,13 @@ from datetime import date, timedelta
 import pandas as pd
 import streamlit as st
 
-from tracker import default_db_path
-from tracker.analytics import fmt_hours, week_monday, week_pivot, _DAY_ABBR
+from tracker import default_db_path, default_export_dir
+from tracker.analytics import fmt_hours, table_subjects, week_monday, week_pivot, _DAY_ABBR
 from tracker.database import TimesheetDB
+from tracker.export_prompt import render_week_export_prompt
 from tracker.models import Subject, TimeEntry
 from tracker.seasonal import seasonal_banner
+from tracker.suggestions import build_suggestions, canonical_value
 
 DB_PATH = default_db_path()
 
@@ -33,6 +35,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("Weekly Activity Table")
+render_week_export_prompt(DB_PATH, default_export_dir())
 
 if "table_week" not in st.session_state:
     st.session_state.table_week = week_monday(date.today())
@@ -80,6 +83,13 @@ subject_by_key = {(s.name, s.low_level_label, s.high_level_label): s for s in su
 subject_by_id = {s.id: s for s in subjects}
 subject_display_labels = sorted(f"{s.name} · {s.low_level_label}" for s in subjects)
 subject_by_display = {f"{s.name} · {s.low_level_label}": s for s in subjects}
+suggestions = build_suggestions(subjects)
+
+# Subjects added through the "New subject" form have no entries yet, so the
+# entries-based filter below would hide them. Pin them for this week in the
+# session until hours are logged (after which the entries keep them visible).
+pinned_ids = st.session_state.setdefault("table_pinned", {}).setdefault(week_start, set())
+_EDITOR_KEY = f"pivot_editor_{week_start}"
 
 # ------------------------------------------------------------------ #
 # Pivot table (editable)
@@ -89,17 +99,15 @@ pivot_df = week_pivot(entries, week_start)
 _EDIT_COLS = ["Subject", "Low Label", "High Label"] + _DAY_ABBR
 
 if not subjects:
-    st.info("No subjects defined yet. Click **+** at the bottom of the table to add your first subject.")
+    st.info("No subjects defined yet. Use **New subject** below to add your first one.")
 else:
-    # Only show subjects active this week or last week.
-    # Subjects from further back are hidden to keep the table clean;
-    # the user can add them manually via the + row.
-    _subjects_this_week = {e.subject_id for e in entries}
-    _subjects_prev_week = {e.subject_id for e in prev_entries}
-    _ordered_subjects = (
-        [s for s in subjects if s.id in _subjects_this_week and s.id not in excluded_ids] +
-        [s for s in subjects if s.id in _subjects_prev_week
-         and s.id not in _subjects_this_week and s.id not in excluded_ids]
+    # Row selection rules live in analytics.table_subjects (unit-tested).
+    _ordered_subjects = table_subjects(
+        subjects,
+        this_week_ids={e.subject_id for e in entries},
+        prev_week_ids={e.subject_id for e in prev_entries},
+        pinned_ids=pinned_ids,
+        excluded_ids=excluded_ids,
     )
     all_subjects_df = pd.DataFrame(
         [{
@@ -153,10 +161,23 @@ else:
         edit_df[~_is_complete],
     ]).reset_index(drop=True)
 
+    # Dropdowns of previously used values. Typing in an open dropdown narrows
+    # it, but the grid's filter is "contains, any case" (react-select default)
+    # and Streamlit exposes no setting for it; SelectboxColumn also cannot
+    # accept new values. Brand-new names/labels therefore go through the
+    # "New subject" form below, whose boxes do starts-with matching.
+    # Every value in edit_df comes from `subjects`, so it is always among the
+    # options; a value missing from them would render as an error cell.
     _col_cfg = {
-        "Subject": st.column_config.TextColumn("Subject", required=True),
-        "Low Label": st.column_config.TextColumn("Low Label"),
-        "High Label": st.column_config.TextColumn("High Label"),
+        "Subject": st.column_config.SelectboxColumn(
+            "Subject", options=suggestions["Subject"], required=True),
+        # required=True removes the dropdown's blank choice: blanking a label on
+        # an existing row counts as removing that subject from the week, which
+        # deletes its hours (see removed_keys below).
+        "Low Label": st.column_config.SelectboxColumn(
+            "Low Label", options=suggestions["Low Label"], required=True),
+        "High Label": st.column_config.SelectboxColumn(
+            "High Label", options=suggestions["High Label"], required=True),
         **{
             day: st.column_config.NumberColumn(
                 day, min_value=0.0, max_value=24.0, step=0.25, format="%.2f"
@@ -173,7 +194,7 @@ else:
         hide_index=True,
         use_container_width=True,
         num_rows="dynamic",
-        key=f"pivot_editor_{week_start}",
+        key=_EDITOR_KEY,
     )
 
     # DAILY TOTAL row — rendered as HTML so "DAILY TOTAL" can span the first
@@ -220,7 +241,8 @@ else:
         st.markdown(html_row, unsafe_allow_html=True)
         st.caption(
             f"Week total: **{fmt_hours(week_total)}**  ·  "
-            "Click **+** to add a row, hover a row and click 🗑 to delete"
+            "Click **+** to add a row from existing names/labels, hover a row and click 🗑 to delete. "
+            "Brand-new names or labels: **New subject** below"
         )
 
     # Excel download
@@ -282,11 +304,17 @@ else:
                 if not name.strip() or not low.strip() or not high.strip():
                     continue
                 try:
-                    db.add_subject(Subject(
+                    new_subj = db.add_subject(Subject(
                         name=name.strip(),
                         low_level_label=low,
                         high_level_label=high,
                     ))
+                    # Pinning is load-bearing: the new subject changes the
+                    # dropdown options, and with num_rows="dynamic" Streamlit ties
+                    # the editor state to data + column_config, so the rerun
+                    # discards the "+" row. Without the pin the subject (no
+                    # entries yet) would vanish from the table.
+                    pinned_ids.add(new_subj.id)
                     needs_rerun = True
                 except Exception as exc:
                     st.error(f"Could not add subject '{name}': {exc}")
@@ -326,6 +354,43 @@ else:
         if needs_rerun:
             st.rerun()
 
+# ------------------------------------------------------------------ #
+# New subject (outside the if/else: it is also how the very first subject is made)
+# ------------------------------------------------------------------ #
+
+with st.expander("➕ New subject", expanded=not subjects):
+    with st.form("new_subject_form", clear_on_submit=True):
+        st.caption("Type to filter your earlier values (starts-with, any case), or type a new one and press Enter.")
+        nc1, nc2, nc3 = st.columns(3)
+        # accept_new_options needs Streamlit >= 1.45; filter_mode ("prefix" =
+        # case-insensitive startswith) was verified on 1.56, hence the pin in
+        # requirements.txt.
+        _picker = dict(index=None, accept_new_options=True, filter_mode="prefix",
+                       placeholder="Type or pick…")
+        new_name = nc1.selectbox("Subject", suggestions["Subject"], **_picker)
+        new_low = nc2.selectbox("Low Label", suggestions["Low Label"], **_picker)
+        new_high = nc3.selectbox("High Label", suggestions["High Label"], **_picker)
+        add_subject = st.form_submit_button("Add to this week", use_container_width=True)
+
+    if add_subject:
+        name = canonical_value(new_name, suggestions["Subject"])
+        low = canonical_value(new_low, suggestions["Low Label"])
+        high = canonical_value(new_high, suggestions["High Label"])
+        if not (name and low and high):
+            st.error("Subject, Low Label and High Label are all required.")
+        else:
+            with TimesheetDB(DB_PATH) as db:
+                subj = subject_by_key.get((name, low, high)) or db.add_subject(
+                    Subject(name=name, low_level_label=low, high_level_label=high))
+                # Re-adding a subject deleted from this week must undo that exclusion.
+                db.remove_week_exclusion(week_start, subj.id)
+            pinned_ids.add(subj.id)
+            # Not strictly needed (the new pinned row changes the editor's data,
+            # which already resets its state) but makes the reset explicit. Nothing
+            # is lost: every grid edit was saved to the DB on the run it happened.
+            st.session_state.pop(_EDITOR_KEY, None)
+            st.rerun()
+
 st.divider()
 
 # ------------------------------------------------------------------ #
@@ -334,7 +399,7 @@ st.divider()
 
 st.subheader("Log Time")
 if not subjects:
-    st.info("Add a subject row in the table above (click **+**) to get started.")
+    st.info("Add a subject with **New subject** above to get started.")
 else:
     with st.form("add_entry_form", clear_on_submit=True):
         col_a, col_b, col_c, col_d = st.columns([3, 2, 2, 3])

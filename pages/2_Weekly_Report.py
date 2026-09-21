@@ -12,7 +12,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from tracker import default_db_path
+from tracker import default_db_path, default_export_dir
 from tracker.analytics import (
     aggregate_by_label,
     aggregate_by_subject,
@@ -25,6 +25,7 @@ from tracker.analytics import (
     weekly_totals_over_range,
 )
 from tracker.database import TimesheetDB
+from tracker.export_prompt import render_week_export_prompt
 from tracker.seasonal import seasonal_banner
 
 DB_PATH = default_db_path()
@@ -44,6 +45,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("Weekly Report")
+render_week_export_prompt(DB_PATH, default_export_dir())
 
 if "report_week" not in st.session_state:
     st.session_state.report_week = week_monday(date.today())

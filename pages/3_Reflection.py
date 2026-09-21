@@ -9,9 +9,10 @@ from datetime import date, timedelta
 
 import streamlit as st
 
-from tracker import default_db_path
+from tracker import default_db_path, default_export_dir
 from tracker.analytics import fmt_hours, week_monday
 from tracker.database import TimesheetDB
+from tracker.export_prompt import render_week_export_prompt
 from tracker.models import Goal, Reflection
 from tracker.seasonal import seasonal_banner
 
@@ -31,6 +32,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("Weekly Reflection")
+render_week_export_prompt(DB_PATH, default_export_dir())
 
 if "refl_week" not in st.session_state:
     st.session_state.refl_week = week_monday(date.today())

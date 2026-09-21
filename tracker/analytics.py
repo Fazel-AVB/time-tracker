@@ -102,6 +102,22 @@ def week_pivot(entries: List[TimeEntry], week_start: date) -> pd.DataFrame:
     return pivot.sort_values(["High Label", "Low Label"]).reset_index(drop=True)
 
 
+def table_subjects(subjects, this_week_ids, prev_week_ids, pinned_ids, excluded_ids) -> list:
+    """
+    Subjects shown as rows of the Weekly Table, in display order: active this
+    week, then active last week, then pinned (added via the "New subject" form,
+    no entries yet). Older subjects stay hidden to keep the table short; rows
+    the user deleted for this week (excluded_ids) never show.
+    """
+    ordered, seen = [], set(excluded_ids)
+    for group in (this_week_ids, prev_week_ids, pinned_ids):
+        for s in subjects:
+            if s.id in group and s.id not in seen:
+                ordered.append(s)
+                seen.add(s.id)
+    return ordered
+
+
 # ------------------------------------------------------------------ #
 # Aggregation  (Pages 2 + 4)
 # ------------------------------------------------------------------ #
@@ -209,13 +225,35 @@ def evaluate_goals(goals: list, entries: List[TimeEntry]) -> list[dict]:
     for e in entries:
         subject_hours[e.subject_id] = subject_hours.get(e.subject_id, 0.0) + e.duration_hours
 
+    # A linked goal with nothing logged is 0.0, not None: None means "not
+    # measurable", and returning it here would suppress the "Not met" suggestion.
     return [
         {
             "goal": g,
-            "actual_hours": subject_hours.get(g.subject_id) if g.subject_id else None,
+            "actual_hours": subject_hours.get(g.subject_id, 0.0) if g.subject_id else None,
         }
         for g in goals
     ]
+
+
+# Fraction of the target that counts as "partial". A design choice, not a
+# calibrated value.
+PARTIAL_FRACTION = 0.75
+
+
+def suggest_goal_status(target_hours: Optional[float], actual_hours: Optional[float]) -> Optional[int]:
+    """
+    Suggest a GoalOutcome.met code (0 = not met, 1 = met, 2 = partial) from
+    target vs actual hours. Returns None when the goal is not measurable
+    (no target, or not linked to a subject).
+    """
+    if not target_hours or actual_hours is None:
+        return None
+    if actual_hours >= target_hours:
+        return 1
+    if actual_hours >= PARTIAL_FRACTION * target_hours:
+        return 2
+    return 0
 
 
 # ------------------------------------------------------------------ #

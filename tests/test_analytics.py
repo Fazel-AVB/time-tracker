@@ -14,6 +14,8 @@ from tracker.analytics import (
     fmt_hours,
     label_averages_over_range,
     narrative_summary,
+    table_subjects,
+    suggest_goal_status,
     week_monday,
     week_pivot,
     weekly_totals_over_range,
@@ -286,7 +288,7 @@ class TestEvaluateGoals:
     def test_linked_goal_with_no_entries_is_zero(self):
         goal = Goal(id=1, week_start=MONDAY, description="Read", subject_id=99)
         result = evaluate_goals([goal], [])
-        assert result[0]["actual_hours"] is None
+        assert result[0]["actual_hours"] == 0.0
 
     def test_multiple_entries_summed_for_subject(self):
         goal = Goal(id=1, week_start=MONDAY, description="Code", subject_id=1)
@@ -296,6 +298,30 @@ class TestEvaluateGoals:
         ]
         result = evaluate_goals([goal], entries)
         assert result[0]["actual_hours"] == 5.0
+
+
+# ------------------------------------------------------------------ #
+# suggest_goal_status
+# ------------------------------------------------------------------ #
+
+class TestSuggestGoalStatus:
+    def test_met_when_target_reached(self):
+        assert suggest_goal_status(10.0, 10.0) == 1
+
+    def test_partial_at_threshold(self):
+        assert suggest_goal_status(10.0, 7.5) == 2
+
+    def test_not_met_below_threshold(self):
+        assert suggest_goal_status(10.0, 7.4) == 0
+
+    def test_not_met_when_nothing_logged(self):
+        assert suggest_goal_status(10.0, 0.0) == 0
+
+    def test_none_without_target(self):
+        assert suggest_goal_status(None, 5.0) is None
+
+    def test_none_when_not_linked(self):
+        assert suggest_goal_status(10.0, None) is None
 
 
 # ------------------------------------------------------------------ #
@@ -329,3 +355,34 @@ class TestNarrativeSummary:
         })
         result = narrative_summary(entries, avg_df=avg_df, level="high")
         assert "Above" in result
+
+
+# ------------------------------------------------------------------ #
+# table_subjects
+# ------------------------------------------------------------------ #
+
+class TestTableSubjects:
+    @staticmethod
+    def _subjects(*ids):
+        from tracker.models import Subject
+        return [Subject(id=i, name=f"S{i}", low_level_label="l", high_level_label="h") for i in ids]
+
+    def test_order_this_week_then_prev_then_pinned(self):
+        subs = self._subjects(1, 2, 3, 4)
+        out = table_subjects(subs, this_week_ids={3}, prev_week_ids={1}, pinned_ids={2}, excluded_ids=set())
+        assert [s.id for s in out] == [3, 1, 2]
+
+    def test_pinned_subject_without_entries_is_shown(self):
+        out = table_subjects(self._subjects(1), set(), set(), {1}, set())
+        assert [s.id for s in out] == [1]
+
+    def test_excluded_wins_over_everything(self):
+        out = table_subjects(self._subjects(1), {1}, {1}, {1}, {1})
+        assert out == []
+
+    def test_no_duplicates_when_in_several_groups(self):
+        out = table_subjects(self._subjects(1), {1}, {1}, {1}, set())
+        assert len(out) == 1
+
+    def test_old_subjects_hidden(self):
+        assert table_subjects(self._subjects(1), set(), set(), set(), set()) == []

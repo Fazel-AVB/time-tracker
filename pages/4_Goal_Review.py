@@ -9,9 +9,10 @@ from datetime import date, timedelta
 
 import streamlit as st
 
-from tracker import default_db_path
-from tracker.analytics import evaluate_goals, fmt_hours, week_monday
+from tracker import default_db_path, default_export_dir
+from tracker.analytics import evaluate_goals, fmt_hours, suggest_goal_status, week_monday
 from tracker.database import TimesheetDB
+from tracker.export_prompt import render_week_export_prompt
 from tracker.models import GoalOutcome
 from tracker.seasonal import seasonal_banner
 
@@ -33,6 +34,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("Goal Review")
+render_week_export_prompt(DB_PATH, default_export_dir())
 
 if "goal_week" not in st.session_state:
     st.session_state.goal_week = week_monday(date.today())
@@ -103,8 +105,17 @@ for item in auto_eval:
     outcome = existing_outcomes.get(goal.id)
 
     # Determine display values
-    saved_met = outcome.met if outcome else 0
     saved_notes = outcome.notes if outcome else ""
+    saved_actual = outcome.actual_hours if outcome else None
+    auto_suggestion = suggest_goal_status(goal.target_hours, actual_h)
+    # A saved evaluation always wins; the suggestion only pre-selects the
+    # radio for goals nobody has evaluated yet.
+    if outcome:
+        default_met = outcome.met
+    elif auto_suggestion is not None:
+        default_met = auto_suggestion
+    else:
+        default_met = 0
 
     with st.container(border=True):
         hcol, scol = st.columns([5, 2])
@@ -124,36 +135,33 @@ for item in auto_eval:
                 st.caption("  ·  ".join(detail_parts))
 
         with scol:
-            color = MET_COLORS[saved_met]
+            if outcome:
+                badge_color, badge_text = MET_COLORS[outcome.met], MET_LABELS[outcome.met]
+            elif auto_suggestion is not None:
+                badge_color = MET_COLORS[auto_suggestion]
+                badge_text = f"Suggested: {MET_LABELS[auto_suggestion]}"
+            else:
+                badge_color, badge_text = "#9CA3AF", "Not evaluated"
             st.markdown(
-                f"<span style='background:{color};color:#fff;padding:3px 10px;"
-                f"border-radius:4px;font-size:0.85em'>{MET_LABELS[saved_met]}</span>",
+                f"<span style='background:{badge_color};color:#fff;padding:3px 10px;"
+                f"border-radius:4px;font-size:0.85em'>{badge_text}</span>",
                 unsafe_allow_html=True,
             )
-
-        # Auto-suggest met status if subject-linked
-        auto_suggestion = None
-        if goal.target_hours and actual_h is not None:
-            if actual_h >= goal.target_hours:
-                auto_suggestion = 1
-            elif actual_h >= 0.75 * goal.target_hours:
-                auto_suggestion = 2
-            else:
-                auto_suggestion = 0
 
         with st.form(f"eval_form_{goal.id}", clear_on_submit=False):
             met_choice = st.radio(
                 "Outcome",
                 options=[0, 1, 2],
                 format_func=lambda x: MET_LABELS[x],
-                index=saved_met,
+                index=default_met,
                 horizontal=True,
                 key=f"met_{goal.id}",
             )
             eval_actual = st.number_input(
                 "Actual hours (override)",
                 min_value=0.0, max_value=168.0, step=0.25,
-                value=float(actual_h or (outcome.actual_hours or 0.0)),
+                # outcome is None for unevaluated goals, so never dereference it here.
+                value=float(actual_h if actual_h is not None else (saved_actual or 0.0)),
                 key=f"actual_{goal.id}",
             )
             eval_notes = st.text_input(

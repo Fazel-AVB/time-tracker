@@ -7,6 +7,29 @@ from typing import List, Optional
 
 from tracker.models import Goal, GoalOutcome, Reflection, Subject, TimeEntry
 
+# Column definitions of the tables that reference subjects(id), used to rebuild
+# them in _migrate_subject_constraint. Must stay identical (including column
+# order) to the CREATE TABLE statements in _init_schema.
+_SUBJECT_CHILD_TABLES = {
+    "time_entries": """
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        date           TEXT NOT NULL,
+        subject_id     INTEGER NOT NULL
+                       REFERENCES subjects(id) ON DELETE RESTRICT,
+        duration_hours REAL NOT NULL CHECK(duration_hours > 0),
+        notes          TEXT DEFAULT '',
+        created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+    """,
+    "goals": """
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        week_start   TEXT NOT NULL,
+        description  TEXT NOT NULL,
+        target_hours REAL,
+        subject_id   INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+        notes        TEXT DEFAULT ''
+    """,
+}
+
 
 class TimesheetDB:
     """SQLite persistence layer. Use as a context manager."""
@@ -86,6 +109,20 @@ class TimesheetDB:
                 subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
                 PRIMARY KEY (week_start, subject_id)
             );
+
+            -- One row per finished week the user answered the export prompt
+            -- for; a week with no row is still pending.
+            CREATE TABLE IF NOT EXISTS week_exports (
+                week_start TEXT PRIMARY KEY,
+                status     TEXT NOT NULL CHECK(status IN ('exported', 'skipped')),
+                path       TEXT,
+                decided_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
         """)
         self._conn.commit()
 
@@ -96,28 +133,27 @@ class TimesheetDB:
         FK references in child tables (time_entries) to point at the temp table name.
         Also repairs any DB left in the broken state by the old migration strategy.
         """
-        # Repair: if a previous migration left time_entries referencing _subjects_old, rebuild it.
-        te_row = self._conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='time_entries'"
-        ).fetchone()
-        if te_row and '_subjects_old' in (te_row['sql'] or ''):
-            self._conn.executescript("""
-                PRAGMA foreign_keys = OFF;
-                CREATE TABLE _time_entries_new (
-                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date           TEXT NOT NULL,
-                    subject_id     INTEGER NOT NULL
-                                   REFERENCES subjects(id) ON DELETE RESTRICT,
-                    duration_hours REAL NOT NULL CHECK(duration_hours > 0),
-                    notes          TEXT DEFAULT '',
-                    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
-                );
-                INSERT INTO _time_entries_new SELECT * FROM time_entries;
-                DROP TABLE time_entries;
-                ALTER TABLE _time_entries_new RENAME TO time_entries;
-                PRAGMA foreign_keys = ON;
-            """)
-            self._conn.commit()
+        # Repair: the old RENAME-based migration rewrote the FK of EVERY child of
+        # subjects (time_entries and goals) to point at _subjects_old. With
+        # foreign_keys ON, any write to such a table then fails with
+        # "no such table: main._subjects_old", so each child must be rebuilt.
+        for table, columns in _SUBJECT_CHILD_TABLES.items():
+            row = self._conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone()
+            if row and '_subjects_old' in (row['sql'] or ''):
+                # foreign_keys OFF is load-bearing: with it ON, DROP TABLE goals
+                # would cascade-delete goal_outcomes. SELECT * relies on the
+                # column order in _SUBJECT_CHILD_TABLES matching the old table.
+                self._conn.executescript(f"""
+                    PRAGMA foreign_keys = OFF;
+                    CREATE TABLE _{table}_new ({columns});
+                    INSERT INTO _{table}_new SELECT * FROM {table};
+                    DROP TABLE {table};
+                    ALTER TABLE _{table}_new RENAME TO {table};
+                    PRAGMA foreign_keys = ON;
+                """)
+                self._conn.commit()
 
         # Migrate subjects if still on the old name-only UNIQUE constraint.
         indices = self._conn.execute("PRAGMA index_list(subjects)").fetchall()
@@ -278,6 +314,38 @@ class TimesheetDB:
             (start.isoformat(), end.isoformat()),
         ).fetchall()
         return [_row_to_entry(r) for r in rows]
+
+    # ------------------------------------------------------------------ #
+    # Week report exports + settings
+    # ------------------------------------------------------------------ #
+
+    def record_week_export(self, week_start: date, status: str, path: Optional[str] = None) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO week_exports (week_start, status, path, decided_at)
+            VALUES (?, ?, ?, datetime('now'))
+            ON CONFLICT(week_start) DO UPDATE SET
+                status = excluded.status, path = excluded.path, decided_at = excluded.decided_at
+            """,
+            (week_start.isoformat(), status, path),
+        )
+        self._conn.commit()
+
+    def get_decided_export_weeks(self) -> set:
+        rows = self._conn.execute("SELECT week_start FROM week_exports").fetchall()
+        return {date.fromisoformat(r["week_start"]) for r in rows}
+
+    def get_setting(self, key: str) -> Optional[str]:
+        row = self._conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        self._conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        self._conn.commit()
 
     # ------------------------------------------------------------------ #
     # Reflections

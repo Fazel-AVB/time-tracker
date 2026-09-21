@@ -1,5 +1,7 @@
 """Unit tests for tracker/database.py — TimesheetDB CRUD layer."""
 
+import sqlite3
+
 import pytest
 from datetime import date, timedelta
 
@@ -288,3 +290,58 @@ class TestMigration:
             db.add_subject(Subject(name="X", low_level_label="a", high_level_label="A"))
         with TimesheetDB(path) as db:
             assert len(db.get_all_subjects()) == 1
+
+    def test_repairs_child_tables_pointing_at_subjects_old(self, tmp_path):
+        """A DB broken by the old RENAME migration (FKs -> _subjects_old) must
+        be repaired on open, keeping rows and goal outcomes."""
+        path = str(tmp_path / "broken.db")
+        with TimesheetDB(path) as db:
+            s = db.add_subject(Subject(name="X", low_level_label="a", high_level_label="A"))
+            db.add_entry(TimeEntry(date=date(2026, 4, 20), subject_id=s.id, duration_hours=1.0))
+            g = db.add_goal(Goal(week_start=date(2026, 4, 20), description="G", subject_id=s.id))
+            db.upsert_goal_outcome(GoalOutcome(goal_id=g.id, met=1))
+
+        # Recreate the broken state by rewriting the stored schema text.
+        conn = sqlite3.connect(path)
+        conn.execute("PRAGMA writable_schema = ON")
+        conn.execute(
+            "UPDATE sqlite_master SET sql = replace(sql, 'REFERENCES subjects', "
+            "'REFERENCES \"_subjects_old\"') WHERE name IN ('time_entries', 'goals')"
+        )
+        conn.commit()
+        conn.close()
+
+        with TimesheetDB(path) as db:
+            new_goal = db.add_goal(Goal(week_start=date(2026, 4, 27), description="H", subject_id=s.id))
+            db.add_entry(TimeEntry(date=date(2026, 4, 21), subject_id=s.id, duration_hours=2.0))
+            assert new_goal.id is not None
+            assert len(db.get_entries_for_week(date(2026, 4, 20))) == 2
+            assert db.get_outcome_for_goal(g.id).met == 1
+            schema = " ".join(r[0] or "" for r in db._conn.execute("SELECT sql FROM sqlite_master"))
+            assert "_subjects_old" not in schema
+
+
+# ------------------------------------------------------------------ #
+# Week exports + settings
+# ------------------------------------------------------------------ #
+
+class TestWeekExports:
+    def test_record_and_list_decided(self, db, week):
+        db.record_week_export(week, "skipped")
+        assert db.get_decided_export_weeks() == {week}
+
+    def test_record_is_upsert(self, db, week):
+        db.record_week_export(week, "skipped")
+        db.record_week_export(week, "exported", "/x.xlsx")
+        row = db._conn.execute("SELECT status, path FROM week_exports").fetchall()
+        assert [tuple(r) for r in row] == [("exported", "/x.xlsx")]
+
+    def test_invalid_status_rejected(self, db, week):
+        with pytest.raises(sqlite3.IntegrityError):
+            db.record_week_export(week, "maybe")
+
+    def test_settings_roundtrip(self, db):
+        assert db.get_setting("k") is None
+        db.set_setting("k", "1")
+        db.set_setting("k", "2")
+        assert db.get_setting("k") == "2"
