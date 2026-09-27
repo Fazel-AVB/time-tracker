@@ -4,6 +4,8 @@ A personal time, progress and reflection tracker that runs in your browser, enti
 computer. No cloud account, no subscription: a small local web app (Flask + HTML/CSS/JavaScript)
 backed by one SQLite file.
 
+![How Time Tracker works: the desktop icon starts a local server and opens the page; the four tabs send every change to the server, which stores it in timesheet.db in ~/.time_tracker; code updates come from GitHub with git pull and never touch that folder](docs/architecture.svg)
+
 ## What it does
 
 Four tabs, all for the week you pick with **← Prev / Next →**:
@@ -137,6 +139,7 @@ tracker/
     static/               the page: index.html, app.js, charts.js, style.css, logo.svg, time_tracker.ico
 tests/                    pytest, no browser needed
 notebooks/                a walkthrough of the tracker functions on a demo database
+docs/architecture.svg     the overview figure above (made by docs/make_figure.py)
 ```
 
 ## Tests

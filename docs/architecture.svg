@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<title>How Time Tracker works</title>
+<desc>The desktop icon starts a small web server on this computer and opens its page in the browser. The page has four tabs: Weekly Table, Weekly Report, Reflection and Goal Review. Every change goes to the server, which stores it in timesheet.db in the ~/.time_tracker folder and writes end-of-week Excel reports there. Code updates come from GitHub with git pull and never touch that folder.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f6b7a"/></marker></defs>
+<rect x="0.5" y="0.5" width="1279" height="719" rx="16" fill="#ffffff" stroke="#e3e7ec"/>
+<text x="40" y="52" font-size="26" font-weight="800" fill="#1E1B4B" text-anchor="start">How Time Tracker works</text>
+<text x="40" y="78" font-size="14" font-weight="400" fill="#5f6b7a" text-anchor="start">Log hours per activity, see weekly reports, reflect and review goals. A small web app that runs in your browser, entirely on your computer.</text>
+<circle cx="105" cy="222" r="42" fill="#1f2328"/>
+<path transform="translate(105,222) scale(1.6) translate(-8,-8)" fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+<text x="105" y="288" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">GitHub</text>
+<text x="105" y="306" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">the code only</text>
+<rect x="210" y="112" width="1040" height="538" rx="18" fill="none" stroke="#8a94a3" stroke-width="1.5" stroke-dasharray="7 6"/>
+<text x="232" y="138" font-size="12" font-weight="800" fill="#8a94a3" text-anchor="start" letter-spacing="1.5">YOUR COMPUTER</text>
+<rect x="250" y="168" width="180" height="110" rx="10" fill="#ffffff" stroke="#6b7785" stroke-width="1.5"/>
+<text x="340.0" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Code</text>
+<text x="340.0" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">the git clone,</text>
+<text x="340.0" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">installed with</text>
+<text x="340.0" y="248" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">pip install -e .</text>
+<path d="M150,222 H246" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="178" y="212" font-size="11" font-weight="600" fill="#5f6b7a" text-anchor="middle">git pull</text>
+<path d="M340,278 V326" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="250" y="330" width="180" height="96" rx="10" fill="#ffffff" stroke="#6b7785" stroke-width="1.5"/>
+<text x="340.0" y="356" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Desktop icon</text>
+<text x="340.0" y="376" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">time-tracker-gui</text>
+<text x="340.0" y="393" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">starts the server,</text>
+<text x="340.0" y="410" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">opens the browser</text>
+<path d="M430,378 H466" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="470" y="154" font-size="13"><tspan font-weight="800" fill="#7C3AED" letter-spacing="1">BROWSER PAGE</tspan><tspan dx="10" fill="#5f6b7a">http://127.0.0.1:8766 · four tabs, one week at a time</tspan></text>
+<rect x="470" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="557.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Weekly Table</text>
+<text x="557.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">hours per subject and day,</text>
+<text x="557.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">saved as you type</text>
+<rect x="661" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="748.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Weekly Report</text>
+<text x="748.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">totals vs. your averages,</text>
+<text x="748.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">charts, CSV</text>
+<rect x="852" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="939.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Reflection</text>
+<text x="939.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">what went well, the plan,</text>
+<text x="939.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">goals for next week</text>
+<rect x="1043" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="1130.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Goal Review</text>
+<text x="1130.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">met / partial / not met,</text>
+<text x="1130.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">checked vs. logged hours</text>
+<path d="M585,256 V326" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="596" y="284" font-size="11" font-weight="600" fill="#5f6b7a" text-anchor="start">every change, sent with a key</text>
+<text x="596" y="299" font-size="11" font-weight="400" fill="#5f6b7a" text-anchor="start">that changes at each start</text>
+<text x="740" y="316" font-size="13"><tspan font-weight="800" fill="#2563EB" letter-spacing="1">LOCAL SERVER</tspan><tspan dx="10" fill="#5f6b7a">on this computer; stops 10 min after you close the tab</tspan></text>
+<rect x="470" y="330" width="230" height="96" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+<text x="585.0" y="356" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">web/app.py</text>
+<text x="585.0" y="376" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">Flask, on this computer only;</text>
+<text x="585.0" y="393" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">checks host and key</text>
+<path d="M700,378 H736" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="740" y="330" width="230" height="96" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+<text x="855.0" y="356" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">service.py</text>
+<text x="855.0" y="376" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">what each button does,</text>
+<text x="855.0" y="393" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">checks what you typed</text>
+<path d="M970,378 H1006" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="1010" y="330" width="208" height="96" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+<text x="1114.0" y="356" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">analytics.py</text>
+<text x="1114.0" y="376" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">weekly totals, averages,</text>
+<text x="1114.0" y="393" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">goal suggestions</text>
+<text x="740" y="630" font-size="13"><tspan font-weight="800" fill="#6b7785" letter-spacing="1">YOUR DATA</tspan><tspan dx="10" fill="#5f6b7a">~/.time_tracker · updates never touch it</tspan></text>
+<path d="M855,426 V498" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M740,514 v76 a115.0,14 0 0 0 230,0 v-76" fill="#f1f4f8" stroke="#6b7785" stroke-width="1.5"/>
+<ellipse cx="855.0" cy="514" rx="115.0" ry="14" fill="#f8fafc" stroke="#6b7785" stroke-width="1.5"/>
+<text x="855.0" y="550" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">timesheet.db</text>
+<text x="855.0" y="568" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">subjects, hours, reflections,</text>
+<text x="855.0" y="584" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">goals and their outcomes</text>
+<path d="M1114,426 V496" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1124" y="466" font-size="11" font-weight="600" fill="#5f6b7a" text-anchor="start">week_report.py</text>
+<path d="M1010,510 h70 l10,-10 h128 v104 h-208 z" fill="#f1f4f8" stroke="#6b7785" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="1114.0" y="544" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">history_exports/</text>
+<text x="1114.0" y="564" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">an Excel report per week,</text>
+<text x="1114.0" y="580" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">when you say yes at week's end</text>
+<rect x="250" y="500" width="450" height="104" rx="10" fill="#ffffff" stroke="#c9d1db" stroke-width="1.5"/>
+<text x="268" y="524" font-size="11" font-weight="800" fill="#8a94a3" text-anchor="start" letter-spacing="1">WHAT CROSSES THE DASHED LINE</text>
+<text x="268" y="548" font-size="11.5" font-weight="800" fill="#7C3AED" text-anchor="start">IN</text>
+<text x="316" y="548" font-size="12" font-weight="400" fill="#1E1B4B" text-anchor="start">Code, when you run git pull.</text>
+<text x="268" y="565" font-size="11.5" font-weight="800" fill="#c0362c" text-anchor="start">OUT</text>
+<text x="316" y="565" font-size="12" font-weight="400" fill="#1E1B4B" text-anchor="start">Nothing. The page loads nothing from the internet,</text>
+<text x="316" y="582" font-size="12" font-weight="400" fill="#1E1B4B" text-anchor="start">and other computers can't reach the server.</text>
+<text x="40" y="690" font-size="12.5" font-weight="400" fill="#5f6b7a" text-anchor="start">Update: git pull in the clone. Your data in ~/.time_tracker stays as it is. Commands: time-tracker, time-tracker shortcut, time-tracker where.</text>
+</svg>
