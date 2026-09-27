@@ -345,3 +345,39 @@ class TestWeekExports:
         db.set_setting("k", "1")
         db.set_setting("k", "2")
         assert db.get_setting("k") == "2"
+
+
+# ------------------------------------------------------------------ #
+# Subject deletion with entries + usage
+# ------------------------------------------------------------------ #
+
+class TestDeleteSubjectWithEntries:
+    def test_deletes_subject_and_all_its_entries(self, db, subject, week):
+        other = db.add_subject(Subject(name="Other", low_level_label="x", high_level_label="X"))
+        db.add_entry(TimeEntry(date=week, subject_id=subject.id, duration_hours=1.0))
+        db.add_entry(TimeEntry(date=week + timedelta(weeks=3), subject_id=subject.id, duration_hours=2.0))
+        db.add_entry(TimeEntry(date=week, subject_id=other.id, duration_hours=4.0))
+        db.delete_subject_with_entries(subject.id)
+        assert db.get_subject(subject.id) is None
+        remaining = db.get_entries_for_range(week, week + timedelta(weeks=5))
+        assert [e.subject_id for e in remaining] == [other.id]
+
+    def test_linked_goal_is_kept_but_unlinked(self, db, subject, week):
+        g = db.add_goal(Goal(week_start=week, description="Read", subject_id=subject.id))
+        db.delete_subject_with_entries(subject.id)
+        goals = db.get_goals_for_week(week)
+        assert [x.id for x in goals] == [g.id]
+        assert goals[0].subject_id is None
+
+    def test_exclusions_cascade(self, db, subject, week):
+        db.add_week_exclusion(week, subject.id)
+        db.delete_subject_with_entries(subject.id)
+        assert db.get_excluded_subject_ids(week) == set()
+
+    def test_usage_counts(self, db, subject, week):
+        unused = db.add_subject(Subject(name="U", low_level_label="u", high_level_label="U"))
+        db.add_entry(TimeEntry(date=week, subject_id=subject.id, duration_hours=1.5))
+        db.add_entry(TimeEntry(date=week, subject_id=subject.id, duration_hours=2.0))
+        usage = db.get_subject_usage()
+        assert usage[subject.id] == (2, 3.5)
+        assert usage[unused.id] == (0, 0)

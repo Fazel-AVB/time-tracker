@@ -1,6 +1,7 @@
 """Page 1: Weekly Activity Table — log entries, view daily/weekly totals."""
 
 import io
+import json
 import sys
 from pathlib import Path
 
@@ -17,7 +18,15 @@ from tracker.database import TimesheetDB
 from tracker.export_prompt import render_week_export_prompt
 from tracker.models import Subject, TimeEntry
 from tracker.seasonal import seasonal_banner
-from tracker.suggestions import build_suggestions, canonical_value
+from tracker.new_subject_picker import new_subject_picker
+from tracker.suggestions import (
+    HIDDEN_SETTING_KEY,
+    build_suggestions,
+    canonical_value,
+    hide_value,
+    parse_hidden,
+    unhide_values,
+)
 
 DB_PATH = default_db_path()
 
@@ -78,12 +87,15 @@ with TimesheetDB(DB_PATH) as db:
     entries = db.get_entries_for_week(week_start)
     prev_entries = db.get_entries_for_week(week_start - timedelta(weeks=1))
     excluded_ids = db.get_excluded_subject_ids(week_start)
+    hidden_suggestions = parse_hidden(db.get_setting(HIDDEN_SETTING_KEY))
 
 subject_by_key = {(s.name, s.low_level_label, s.high_level_label): s for s in subjects}
 subject_by_id = {s.id: s for s in subjects}
 subject_display_labels = sorted(f"{s.name} · {s.low_level_label}" for s in subjects)
 subject_by_display = {f"{s.name} · {s.low_level_label}": s for s in subjects}
-suggestions = build_suggestions(subjects)
+# all_values keeps removed (hidden) values so retyping one reuses its spelling.
+all_values = build_suggestions(subjects)
+suggestions = build_suggestions(subjects, hidden_suggestions)
 
 # Subjects added through the "New subject" form have no entries yet, so the
 # entries-based filter below would hide them. Pin them for this week in the
@@ -161,23 +173,14 @@ else:
         edit_df[~_is_complete],
     ]).reset_index(drop=True)
 
-    # Dropdowns of previously used values. Typing in an open dropdown narrows
-    # it, but the grid's filter is "contains, any case" (react-select default)
-    # and Streamlit exposes no setting for it; SelectboxColumn also cannot
-    # accept new values. Brand-new names/labels therefore go through the
-    # "New subject" form below, whose boxes do starts-with matching.
-    # Every value in edit_df comes from `subjects`, so it is always among the
-    # options; a value missing from them would render as an error cell.
+    # Free-text on purpose. SelectboxColumn dropdowns were tried: they cannot
+    # accept a value that is not already an option (true up to Streamlit 1.64),
+    # so a label could not be retyped in place. Suggestions live in the
+    # "New subject" form below instead (starts-with, any case).
     _col_cfg = {
-        "Subject": st.column_config.SelectboxColumn(
-            "Subject", options=suggestions["Subject"], required=True),
-        # required=True removes the dropdown's blank choice: blanking a label on
-        # an existing row counts as removing that subject from the week, which
-        # deletes its hours (see removed_keys below).
-        "Low Label": st.column_config.SelectboxColumn(
-            "Low Label", options=suggestions["Low Label"], required=True),
-        "High Label": st.column_config.SelectboxColumn(
-            "High Label", options=suggestions["High Label"], required=True),
+        "Subject": st.column_config.TextColumn("Subject", required=True),
+        "Low Label": st.column_config.TextColumn("Low Label", required=True),
+        "High Label": st.column_config.TextColumn("High Label", required=True),
         **{
             day: st.column_config.NumberColumn(
                 day, min_value=0.0, max_value=24.0, step=0.25, format="%.2f"
@@ -241,8 +244,8 @@ else:
         st.markdown(html_row, unsafe_allow_html=True)
         st.caption(
             f"Week total: **{fmt_hours(week_total)}**  ·  "
-            "Click **+** to add a row from existing names/labels, hover a row and click 🗑 to delete. "
-            "Brand-new names or labels: **New subject** below"
+            "Click **+** to add a row or type over any name/label, hover a row and click 🗑 to remove it "
+            "from this week. Suggestions: **New subject** below; delete subjects for good: **Manage subjects**"
         )
 
     # Excel download
@@ -309,11 +312,15 @@ else:
                         low_level_label=low,
                         high_level_label=high,
                     ))
-                    # Pinning is load-bearing: the new subject changes the
-                    # dropdown options, and with num_rows="dynamic" Streamlit ties
-                    # the editor state to data + column_config, so the rerun
-                    # discards the "+" row. Without the pin the subject (no
-                    # entries yet) would vanish from the table.
+                    # Save this row's hours on THIS run via the kept_keys loop
+                    # below. Load-bearing: with num_rows="dynamic" the editor
+                    # state is tied to its input data, and the rerun changes that
+                    # data (a renamed row's old subject is excluded), so hours
+                    # left for "the next run" were dropped. That is how
+                    # retyping a label (e.g. ghg -> quiz) used to lose the week.
+                    subject_by_key[key] = new_subj
+                    kept_keys.add(key)
+                    # Pin so the row stays visible even when it has no hours yet.
                     pinned_ids.add(new_subj.id)
                     needs_rerun = True
                 except Exception as exc:
@@ -359,23 +366,22 @@ else:
 # ------------------------------------------------------------------ #
 
 with st.expander("➕ New subject", expanded=not subjects):
-    with st.form("new_subject_form", clear_on_submit=True):
-        st.caption("Type to filter your earlier values (starts-with, any case), or type a new one and press Enter.")
-        nc1, nc2, nc3 = st.columns(3)
-        # accept_new_options needs Streamlit >= 1.45; filter_mode ("prefix" =
-        # case-insensitive startswith) was verified on 1.56, hence the pin in
-        # requirements.txt.
-        _picker = dict(index=None, accept_new_options=True, filter_mode="prefix",
-                       placeholder="Type or pick…")
-        new_name = nc1.selectbox("Subject", suggestions["Subject"], **_picker)
-        new_low = nc2.selectbox("Low Label", suggestions["Low Label"], **_picker)
-        new_high = nc3.selectbox("High Label", suggestions["High Label"], **_picker)
-        add_subject = st.form_submit_button("Add to this week", use_container_width=True)
+    st.caption(
+        "Type to filter your earlier values (starts-with, any case) or type a new one. "
+        "✕ removes a value from the suggestions only; subjects and hours that use it are kept."
+    )
+    added, removed = new_subject_picker(suggestions, key="new_subject_picker")
 
-    if add_subject:
-        name = canonical_value(new_name, suggestions["Subject"])
-        low = canonical_value(new_low, suggestions["Low Label"])
-        high = canonical_value(new_high, suggestions["High Label"])
+    if removed:
+        with TimesheetDB(DB_PATH) as db:
+            db.set_setting(HIDDEN_SETTING_KEY, json.dumps(
+                hide_value(hidden_suggestions, removed["column"], removed["value"])))
+        st.rerun()
+
+    if added:
+        name = canonical_value(added.get("Subject"), all_values["Subject"])
+        low = canonical_value(added.get("Low Label"), all_values["Low Label"])
+        high = canonical_value(added.get("High Label"), all_values["High Label"])
         if not (name and low and high):
             st.error("Subject, Low Label and High Label are all required.")
         else:
@@ -384,12 +390,61 @@ with st.expander("➕ New subject", expanded=not subjects):
                     Subject(name=name, low_level_label=low, high_level_label=high))
                 # Re-adding a subject deleted from this week must undo that exclusion.
                 db.remove_week_exclusion(week_start, subj.id)
+                # Typing a removed value again on purpose brings it back.
+                db.set_setting(HIDDEN_SETTING_KEY, json.dumps(unhide_values(
+                    hidden_suggestions, {"Subject": name, "Low Label": low, "High Label": high})))
             pinned_ids.add(subj.id)
             # Not strictly needed (the new pinned row changes the editor's data,
             # which already resets its state) but makes the reset explicit. Nothing
             # is lost: every grid edit was saved to the DB on the run it happened.
             st.session_state.pop(_EDITOR_KEY, None)
             st.rerun()
+
+# ------------------------------------------------------------------ #
+# Manage subjects: delete for good (also removes them from the suggestions)
+# ------------------------------------------------------------------ #
+
+_CONFIRM_KEY = "confirm_delete_subject"
+
+if subjects:
+    with st.expander("🗂 Manage subjects", expanded=_CONFIRM_KEY in st.session_state):
+        st.caption(
+            "✕ deletes a subject in **all weeks** and removes its names from the suggestions. "
+            "Goals linked to it are kept but unlinked. To drop a row from one week only, use 🗑 in the table."
+        )
+        with TimesheetDB(DB_PATH) as db:
+            usage = db.get_subject_usage()
+        pending_delete = st.session_state.get(_CONFIRM_KEY)
+
+        for s in sorted(subjects, key=lambda s: (s.name.casefold(), s.low_level_label.casefold(),
+                                                  s.high_level_label.casefold())):
+            n_entries, hours = usage.get(s.id, (0, 0.0))
+            mc1, mc2, mc3 = st.columns([6, 2, 1])
+            mc1.write(f"**{s.name}** · {s.low_level_label or '—'} · {s.high_level_label or '—'}")
+            mc2.caption(f"{n_entries} entries, {fmt_hours(hours)}" if n_entries else "unused")
+            if mc3.button("✕", key=f"del_subj_{s.id}", help="Delete this subject everywhere"):
+                if n_entries:
+                    # Logged hours would go with it, so ask first.
+                    st.session_state[_CONFIRM_KEY] = s.id
+                else:
+                    with TimesheetDB(DB_PATH) as db:
+                        db.delete_subject_with_entries(s.id)
+                st.rerun()
+
+            if pending_delete == s.id:
+                st.warning(
+                    f"Delete **{s.name} · {s.low_level_label} · {s.high_level_label}** and its "
+                    f"{n_entries} entries ({fmt_hours(hours)}) in all weeks? This cannot be undone."
+                )
+                yc, nc, _ = st.columns([1, 1, 4])
+                if yc.button("Delete", key=f"confirm_del_{s.id}", type="primary"):
+                    with TimesheetDB(DB_PATH) as db:
+                        db.delete_subject_with_entries(s.id)
+                    st.session_state.pop(_CONFIRM_KEY, None)
+                    st.rerun()
+                if nc.button("Cancel", key=f"cancel_del_{s.id}"):
+                    st.session_state.pop(_CONFIRM_KEY, None)
+                    st.rerun()
 
 st.divider()
 

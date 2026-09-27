@@ -206,6 +206,28 @@ class TimesheetDB:
         self._conn.execute("DELETE FROM subjects WHERE id=?", (subject_id,))
         self._conn.commit()
 
+    def delete_subject_with_entries(self, subject_id: int) -> None:
+        """
+        Delete a subject and all its time entries in one transaction.
+        time_entries is ON DELETE RESTRICT, so entries must go first; goals
+        linked to it become unlinked (ON DELETE SET NULL) and week exclusions
+        cascade.
+        """
+        with self._conn:  # commits both deletes together, or rolls back both
+            self._conn.execute("DELETE FROM time_entries WHERE subject_id=?", (subject_id,))
+            self._conn.execute("DELETE FROM subjects WHERE id=?", (subject_id,))
+
+    def get_subject_usage(self) -> dict:
+        """{subject_id: (n_entries, total_hours)} over all time, 0 for unused subjects."""
+        rows = self._conn.execute(
+            """
+            SELECT s.id, COUNT(te.id) AS n, COALESCE(SUM(te.duration_hours), 0) AS hours
+            FROM subjects s LEFT JOIN time_entries te ON te.subject_id = s.id
+            GROUP BY s.id
+            """
+        ).fetchall()
+        return {r["id"]: (r["n"], r["hours"]) for r in rows}
+
     def get_subject(self, subject_id: int) -> Optional[Subject]:
         row = self._conn.execute(
             "SELECT * FROM subjects WHERE id=?", (subject_id,)
