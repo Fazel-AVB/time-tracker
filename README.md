@@ -8,7 +8,7 @@ backed by one SQLite file.
 
 ## What it does
 
-Four tabs, all for the week you pick with **← Prev / Next →**:
+Four tabs for the week you pick with **← Prev / Next →**, and one to import earlier Excel files:
 
 | Tab | Purpose |
 |---|---|
@@ -16,6 +16,7 @@ Four tabs, all for the week you pick with **← Prev / Next →**:
 | **Weekly Report** | Totals, a comparison to your long-term averages, bar and trend charts, subject breakdown, CSV download. |
 | **Reflection** | What went well, what could improve, the plan for next week, and goals for next week. |
 | **Goal Review** | Evaluate the week's goals; goals linked to a subject are checked against the hours you logged. |
+| **Import** | Read Excel files from earlier runs back in: one or many, with a preview of what changes. |
 
 When a week with entries has ended, the app asks once whether to export that week's report to Excel.
 
@@ -103,11 +104,43 @@ Retyping a name or label in the table changes that row for the displayed week on
 keep the old one. 🗑 removes a row, and its hours, from the displayed week only. To delete a
 subject everywhere, use **Manage subjects**.
 
+## Import Excel files from earlier runs
+
+The **Import** tab reads back the Excel files the app wrote before, from this version or the
+Streamlit one:
+
+- end-of-week reports, `time_report_<date>.xlsx`: hours with their notes, the reflection, and
+  goals with their outcomes;
+- table downloads, `timesheet_<date>.xlsx`: hours per subject and day.
+
+Choose or drop one file or many. The week of each file comes from the dates inside it (the
+report's Entries sheet), otherwise from the date in its name; if it has neither, the tab asks
+you. Nothing changes until you press **Import**. First you see, per file, which days are new
+and which are already there, and a chart of hours per week now vs after the import. Afterwards
+the Weekly Table, Report and Goal Review include the imported weeks.
+
+Importing the same file twice changes nothing: a day whose hours are already the same is left
+alone. For a day where the app and the file disagree, you choose: keep the app's hours (the
+default) or use the file's. Subjects are matched by name and labels, ignoring case, and created
+when missing.
+
+Old reports are usually in `~/.time_tracker\history_exports`, or in the clone's
+`history_exports` folder for the Streamlit version. The tab shows the folders it finds.
+From a terminal, a whole folder at once:
+
+```
+time-tracker import-excel "D:\Programs\time-tracker\history_exports" --dry-run   # only show what would change
+time-tracker import-excel "D:\Programs\time-tracker\history_exports"
+```
+
+## Commands
+
 ```
 time-tracker                    open the app (same as double-clicking the icon)
 time-tracker gui --port 8800    use another port; --no-browser to not open a tab
 time-tracker where              where the data is
 time-tracker import-db FILE     use a copy of another timesheet.db (--force to replace yours; a backup is kept)
+time-tracker import-excel PATH  add Excel reports from earlier runs; files or folders (--replace, --week, --dry-run)
 time-tracker shortcut           (re)create the desktop icon
 time-tracker --version
 ```
@@ -128,6 +161,7 @@ tracker/
   analytics.py            pure aggregation: weekly pivot, label totals, averages, goal evaluation
   suggestions.py          the New-subject suggestions and hidden values
   week_report.py          the end-of-week Excel workbook
+  excel_import.py         reading those workbooks (and table downloads) back in
   seasonal.py             the seasonal banner's colours
   service.py              what each button does (used by the web app, unit-tested)
   paths.py                where the data lives (~/.time_tracker); moving data from older versions

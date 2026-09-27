@@ -1,5 +1,7 @@
 """Tests for tracker/web/app.py — the local web API and its security checks (Flask test client)."""
 
+import io
+
 import pytest
 from flask.testing import FlaskClient
 
@@ -127,3 +129,34 @@ def test_quit_calls_back(tmp_path):
     c = make_client(create_app(tmp_path / "t.db", tmp_path / "e", TOKEN, {HOST}, on_quit=called.set))
     assert c.post("/api/quit", headers={TOKEN_HEADER: TOKEN}).status_code == 200
     assert called.wait(2)
+
+
+def test_import_upload_preview_then_apply(client, tmp_path):
+    from datetime import date
+
+    from tracker.models import Subject, TimeEntry
+    from tracker.database import TimesheetDB
+    from tracker.week_report import build_week_report_xlsx
+
+    with TimesheetDB(str(tmp_path / "other.db")) as other:
+        s = other.add_subject(Subject(name="R", low_level_label="l", high_level_label="H"))
+        other.add_entry(TimeEntry(date=date(2026, 9, 15), subject_id=s.id, duration_hours=2))
+        data = build_week_report_xlsx(date(2026, 9, 14), other.get_entries_for_week(date(2026, 9, 14)))
+
+    def form():
+        return {"files": [(io.BytesIO(data), "time_report_2026-09-14.xlsx"), (io.BytesIO(b"junk"), "junk.xlsx")],
+                "mode": "keep", "weeks": "{}"}
+
+    headers = {TOKEN_HEADER: TOKEN}
+    prev = client.post("/api/import/preview", data=form(), headers=headers, content_type="multipart/form-data").get_json()
+    assert [f["ok"] for f in prev["files"]] == [True, False]
+    assert call(client, "GET", f"/api/week?week={WEEK}").get_json()["rows"] == []  # preview wrote nothing
+
+    done = client.post("/api/import", data=form(), headers=headers, content_type="multipart/form-data").get_json()
+    assert done["weeks"] == [{"week_start": WEEK, "hours_before": 0, "hours_after": 2}]
+    assert call(client, "GET", f"/api/week?week={WEEK}").get_json()["week_total"] == 2
+
+
+def test_import_needs_files(client):
+    r = client.post("/api/import", data={"mode": "keep"}, headers={TOKEN_HEADER: TOKEN}, content_type="multipart/form-data")
+    assert r.status_code == 400

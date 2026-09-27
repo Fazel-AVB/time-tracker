@@ -53,7 +53,7 @@ def _ro_uri(path: Path) -> str:
     return path.resolve().as_uri() + "?mode=ro"
 
 
-def _copy_sqlite(src: Path, dst: Path) -> None:
+def copy_sqlite(src: Path, dst: Path) -> None:
     """Copy a database with SQLite's backup API: a consistent copy even if
     another program has it open, unlike a plain file copy.
 
@@ -99,7 +99,7 @@ def adopt_legacy_db() -> Optional[Path]:
     src, dst = legacy_db_path(), db_path()
     if dst.exists() or not src.is_file():
         return None
-    _copy_sqlite(src, dst)
+    copy_sqlite(src, dst)
     return src
 
 
@@ -119,6 +119,6 @@ def import_db(src: Path, force: bool = False) -> Optional[Path]:
         if not force:
             raise FileExistsError(f"{dst} already exists. Use --force to replace it (a backup is kept).")
         backup = dst.with_name(f"timesheet.backup-{datetime.now():%Y-%m-%d-%H%M%S}.db")
-        _copy_sqlite(dst, backup)
-    _copy_sqlite(src, dst)
+        copy_sqlite(dst, backup)
+    copy_sqlite(src, dst)
     return backup

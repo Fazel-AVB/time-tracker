@@ -19,6 +19,7 @@ your timesheet while the app is open.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import threading
@@ -30,12 +31,15 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, request
 
-from .. import __version__, service
+from .. import __version__, paths, service
 from ..database import TimesheetDB
 
 TOKEN_HEADER = "X-TT-Token"
 TOKEN_PLACEHOLDER = "__TT_TOKEN__"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+# Upload limit for the Import tab. A week's report is ~10 KB, so this fits
+# years of weekly files and still refuses an accidental huge upload.
+MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 
 
 def create_app(
@@ -48,6 +52,7 @@ def create_app(
 ) -> Flask:
     """notice: a one-time message for the page (e.g. "your data was moved to ...")."""
     app = Flask(__name__, static_folder="static", static_url_path="/static")
+    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
     # Read by the launcher's idle watchdog (launcher.py) to exit after the page is closed.
     app.extensions["time_tracker"] = {"last_seen": time.time()}
 
@@ -115,8 +120,11 @@ def create_app(
     def info():
         state = app.extensions["time_tracker"]
         msg, state["notice"] = state.get("notice"), None  # shown once
+        # Folders where earlier reports may be, shown on the Import tab as hints.
+        legacy = paths.legacy_db_path().parent.parent / "history_exports"
+        folders = [str(p) for p in (export_dir, legacy) if p.is_dir()]
         return jsonify(version=__version__, db=str(db_path), exports=str(export_dir), notice=msg,
-                       can_open_folder=sys.platform == "win32")
+                       can_open_folder=sys.platform == "win32", report_folders=folders)
 
     app.extensions["time_tracker"]["notice"] = notice
 
@@ -272,6 +280,34 @@ def create_app(
                 service.skip_export(d, ws)
                 return jsonify(ok=True)
         raise service.UserError("action must be export or skip")
+
+    # --- import Excel files ---------------------------------------------------
+
+    def upload():
+        # Only name and bytes are used: nothing uploaded is written to disk.
+        files = [(f.filename or "file.xlsx", f.read()) for f in request.files.getlist("files")]
+        if not files:
+            raise service.UserError("Choose one or more .xlsx files first")
+        try:
+            weeks = json.loads(request.form.get("weeks") or "{}")
+        except ValueError as e:
+            raise service.UserError("weeks must be JSON") from e
+        return files, request.form.get("mode", "keep"), weeks
+
+    @app.post("/api/import/preview")
+    def import_preview():
+        files, mode, weeks = upload()
+        return jsonify(service.preview_import(db_path, files, mode, weeks))
+
+    @app.post("/api/import")
+    def import_apply():
+        files, mode, weeks = upload()
+        with db() as d:
+            return jsonify(service.import_excel(d, files, mode, weeks))
+
+    @app.errorhandler(413)
+    def too_large(_e):
+        return jsonify(error=f"The files are larger than {MAX_UPLOAD_BYTES // 2**20} MB together; import fewer at a time"), 413
 
     @app.post("/api/open-exports")
     def open_exports():

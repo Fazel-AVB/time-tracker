@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
 <title>How Time Tracker works</title>
-<desc>The desktop icon starts a small web server on this computer and opens its page in the browser. The page has four tabs: Weekly Table, Weekly Report, Reflection and Goal Review. Every change goes to the server, which stores it in timesheet.db in the ~/.time_tracker folder and writes end-of-week Excel reports there. Code updates come from GitHub with git pull and never touch that folder.</desc>
+<desc>The desktop icon starts a small web server on this computer and opens its page in the browser. The page has five tabs: Weekly Table, Weekly Report, Reflection, Goal Review and Import. Every change goes to the server, which stores it in timesheet.db in the ~/.time_tracker folder and writes end-of-week Excel reports there; the Import tab reads such reports back in. Code updates come from GitHub with git pull and never touch that folder.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f6b7a"/></marker></defs>
 <rect x="0.5" y="0.5" width="1279" height="719" rx="16" fill="#ffffff" stroke="#e3e7ec"/>
 <text x="40" y="52" font-size="26" font-weight="800" fill="#1E1B4B" text-anchor="start">How Time Tracker works</text>
@@ -25,23 +25,27 @@
 <text x="340.0" y="393" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">starts the server,</text>
 <text x="340.0" y="410" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">opens the browser</text>
 <path d="M430,378 H466" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
-<text x="470" y="154" font-size="13"><tspan font-weight="800" fill="#7C3AED" letter-spacing="1">BROWSER PAGE</tspan><tspan dx="10" fill="#5f6b7a">http://127.0.0.1:8766 · four tabs, one week at a time</tspan></text>
-<rect x="470" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
-<text x="557.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Weekly Table</text>
-<text x="557.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">hours per subject and day,</text>
-<text x="557.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">saved as you type</text>
-<rect x="661" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
-<text x="748.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Weekly Report</text>
-<text x="748.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">totals vs. your averages,</text>
-<text x="748.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">charts, CSV</text>
-<rect x="852" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
-<text x="939.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Reflection</text>
-<text x="939.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">what went well, the plan,</text>
-<text x="939.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">goals for next week</text>
-<rect x="1043" y="168" width="175" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
-<text x="1130.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Goal Review</text>
-<text x="1130.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">met / partial / not met,</text>
-<text x="1130.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">checked vs. logged hours</text>
+<text x="470" y="154" font-size="13"><tspan font-weight="800" fill="#7C3AED" letter-spacing="1">BROWSER PAGE</tspan><tspan dx="10" fill="#5f6b7a">http://127.0.0.1:8766 · five tabs</tspan></text>
+<rect x="470.0" y="168" width="142" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="541.0" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Weekly Table</text>
+<text x="541.0" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">hours per subject</text>
+<text x="541.0" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">and day</text>
+<rect x="621.5" y="168" width="142" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="692.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Weekly Report</text>
+<text x="692.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">totals, averages,</text>
+<text x="692.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">charts, CSV</text>
+<rect x="773.0" y="168" width="142" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="844.0" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Reflection</text>
+<text x="844.0" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">the week in words,</text>
+<text x="844.0" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">next week's goals</text>
+<rect x="924.5" y="168" width="142" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="995.5" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Goal Review</text>
+<text x="995.5" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">met / partial /</text>
+<text x="995.5" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">not met</text>
+<rect x="1076.0" y="168" width="142" height="86" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+<text x="1147.0" y="194" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">Import</text>
+<text x="1147.0" y="214" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">Excel reports</text>
+<text x="1147.0" y="231" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">from earlier runs</text>
 <path d="M585,256 V326" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
 <text x="596" y="284" font-size="11" font-weight="600" fill="#5f6b7a" text-anchor="start">every change, sent with a key</text>
 <text x="596" y="299" font-size="11" font-weight="400" fill="#5f6b7a" text-anchor="start">that changes at each start</text>
@@ -60,10 +64,10 @@
 <text x="1114.0" y="356" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">analytics.py</text>
 <text x="1114.0" y="376" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">weekly totals, averages,</text>
 <text x="1114.0" y="393" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">goal suggestions</text>
-<text x="740" y="630" font-size="13"><tspan font-weight="800" fill="#6b7785" letter-spacing="1">YOUR DATA</tspan><tspan dx="10" fill="#5f6b7a">~/.time_tracker · updates never touch it</tspan></text>
+<text x="750" y="630" font-size="13"><tspan font-weight="800" fill="#6b7785" letter-spacing="1">YOUR DATA</tspan><tspan dx="10" fill="#5f6b7a">~/.time_tracker · updates never touch it</tspan></text>
 <path d="M855,426 V498" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M740,514 v76 a115.0,14 0 0 0 230,0 v-76" fill="#f1f4f8" stroke="#6b7785" stroke-width="1.5"/>
-<ellipse cx="855.0" cy="514" rx="115.0" ry="14" fill="#f8fafc" stroke="#6b7785" stroke-width="1.5"/>
+<path d="M750,514 v76 a105.0,14 0 0 0 210,0 v-76" fill="#f1f4f8" stroke="#6b7785" stroke-width="1.5"/>
+<ellipse cx="855.0" cy="514" rx="105.0" ry="14" fill="#f8fafc" stroke="#6b7785" stroke-width="1.5"/>
 <text x="855.0" y="550" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">timesheet.db</text>
 <text x="855.0" y="568" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">subjects, hours, reflections,</text>
 <text x="855.0" y="584" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">goals and their outcomes</text>
@@ -73,6 +77,8 @@
 <text x="1114.0" y="544" font-size="15" font-weight="700" fill="#1E1B4B" text-anchor="middle">history_exports/</text>
 <text x="1114.0" y="564" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">an Excel report per week,</text>
 <text x="1114.0" y="580" font-size="12" font-weight="400" fill="#5f6b7a" text-anchor="middle">when you say yes at week's end</text>
+<path d="M1008,566 H964" fill="none" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="986" y="556" font-size="11" font-weight="600" fill="#5f6b7a" text-anchor="middle">import</text>
 <rect x="250" y="500" width="450" height="104" rx="10" fill="#ffffff" stroke="#c9d1db" stroke-width="1.5"/>
 <text x="268" y="524" font-size="11" font-weight="800" fill="#8a94a3" text-anchor="start" letter-spacing="1">WHAT CROSSES THE DASHED LINE</text>
 <text x="268" y="548" font-size="11.5" font-weight="800" fill="#7C3AED" text-anchor="start">IN</text>
@@ -80,5 +86,5 @@
 <text x="268" y="565" font-size="11.5" font-weight="800" fill="#c0362c" text-anchor="start">OUT</text>
 <text x="316" y="565" font-size="12" font-weight="400" fill="#1E1B4B" text-anchor="start">Nothing. The page loads nothing from the internet,</text>
 <text x="316" y="582" font-size="12" font-weight="400" fill="#1E1B4B" text-anchor="start">and other computers can't reach the server.</text>
-<text x="40" y="690" font-size="12.5" font-weight="400" fill="#5f6b7a" text-anchor="start">Update: git pull in the clone. Your data in ~/.time_tracker stays as it is. Commands: time-tracker, time-tracker shortcut, time-tracker where.</text>
+<text x="40" y="690" font-size="12.5" font-weight="400" fill="#5f6b7a" text-anchor="start">Update: git pull in the clone. Your data in ~/.time_tracker stays as it is. Commands: time-tracker, time-tracker shortcut, time-tracker import-excel.</text>
 </svg>

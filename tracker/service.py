@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
@@ -32,7 +33,9 @@ from tracker.analytics import (
     week_monday,
     weekly_totals_over_range,
 )
+from tracker import paths
 from tracker.database import TimesheetDB
+from tracker.excel_import import ExcelImportError, ImportedEntry, WeekNeeded, parse_workbook
 from tracker.models import Goal, GoalOutcome, Reflection, Subject, TimeEntry
 from tracker.seasonal import season_theme
 from tracker.suggestions import (
@@ -509,3 +512,192 @@ def export_week(db: TimesheetDB, export_dir: Path, week_start: date) -> str:
 
 def skip_export(db: TimesheetDB, week_start: date) -> None:
     db.record_week_export(week_start, "skipped")
+
+
+# ------------------------------------------------------------------ #
+# Import Excel files from earlier runs
+# ------------------------------------------------------------------ #
+
+IMPORT_MODES = ("keep", "replace")
+_UNKNOWN = "unknown"  # analytics.entries_to_df writes "Unknown" for an empty label; the export inherits it
+
+
+def _import_subject(db: TimesheetDB, name: str, low: str, high: str) -> Subject:
+    """The subject an imported row belongs to, created if needed.
+
+    Matching ignores case, and a label "Unknown" (how the export writes an
+    empty label) matches an empty one, so re-importing an export of a subject
+    without labels doesn't create a near-duplicate.
+    """
+    def norm(v: str) -> str:
+        v = (v or "").strip()
+        return "" if v.casefold() == _UNKNOWN else v
+
+    low, high = norm(low), norm(high)
+    same_name = [s for s in db.get_all_subjects() if s.name.casefold() == name.strip().casefold()]
+    for s in same_name:
+        if norm(s.low_level_label).casefold() == low.casefold() and norm(s.high_level_label).casefold() == high.casefold():
+            return s
+    if not (low and high) and len(same_name) == 1:
+        return same_name[0]
+    return _find_or_create_subject(db, name, low or "Unknown", high or "Unknown")
+
+
+def _import_entries(db: TimesheetDB, entries: list[ImportedEntry], mode: str) -> dict:
+    """Add the file's hours, one table cell (subject, day) at a time.
+
+    Compared per cell, not per entry, because the Weekly Table sheet has only
+    cell totals. A cell already holding the same total is left alone, which
+    makes importing the same file twice harmless. A cell with a different
+    total keeps the app's value in "keep" mode and takes the file's in
+    "replace" mode.
+    """
+    counts = {"new": 0, "same": 0, "different": 0}
+    cells: dict[tuple, list[ImportedEntry]] = {}
+    for e in entries:
+        cells.setdefault((e.name, e.low, e.high, e.date), []).append(e)
+    for (name, low, high, d), items in cells.items():
+        subj = _import_subject(db, name, low, high)
+        existing = [e for e in db.get_entries_for_range(d, d + timedelta(days=1)) if e.subject_id == subj.id]
+        file_total = sum(i.hours for i in items)
+        if existing and abs(sum(e.duration_hours for e in existing) - file_total) < 0.001:
+            counts["same"] += 1
+            continue
+        if existing:
+            counts["different"] += 1
+            if mode != "replace":
+                continue
+            for e in existing:
+                db.delete_entry(e.id)
+        else:
+            counts["new"] += 1
+        for i in items:
+            db.add_entry(TimeEntry(date=d, subject_id=subj.id, duration_hours=i.hours, notes=i.notes))
+        # A row removed from that week by hand comes back with its imported hours.
+        db.remove_week_exclusion(week_monday(d), subj.id)
+    return counts
+
+
+def _import_reflection(db: TimesheetDB, week: date, refl: Optional[dict], mode: str) -> str:
+    if not refl:
+        return "none"
+    new = Reflection(week_start=week, strengths=refl["strengths"], weaknesses=refl["weaknesses"],
+                     next_week_plan=refl["plan"])
+    cur = db.get_reflection(week)
+    cur_fields = (cur.strengths, cur.weaknesses, cur.next_week_plan) if cur else ("", "", "")
+    if cur_fields == (new.strengths, new.weaknesses, new.next_week_plan):
+        return "same"
+    if any(cur_fields):
+        if mode != "replace":
+            return "kept"
+        db.upsert_reflection(new)
+        return "replaced"
+    db.upsert_reflection(new)
+    return "new"
+
+
+def _import_goals(db: TimesheetDB, week: date, goals: list[dict], mode: str) -> dict:
+    """Goals are matched by description (ignoring case) within the week."""
+    counts = {"new": 0, "existing": 0}
+    existing = {g.description.strip().casefold(): g for g in db.get_goals_for_week(week)}
+    for g in goals:
+        goal = existing.get(g["description"].casefold())
+        if goal is None:
+            # The Goals sheet names the subject but not its labels: prefer a
+            # subject with that name that has hours in the week.
+            candidates = [s for s in db.get_all_subjects() if s.name.casefold() == g["subject"].casefold()] if g["subject"] else []
+            used = {e.subject_id for e in db.get_entries_for_week(week)}
+            subj = next((s for s in candidates if s.id in used), candidates[0] if candidates else None)
+            goal = db.add_goal(Goal(week_start=week, description=g["description"], target_hours=g["target_hours"],
+                                    subject_id=subj.id if subj else None))
+            existing[g["description"].casefold()] = goal
+            counts["new"] += 1
+        else:
+            counts["existing"] += 1
+        if g["met"] is None:
+            continue
+        cur = db.get_outcome_for_goal(goal.id)
+        if cur is None or (mode == "replace" and (cur.met, cur.notes) != (g["met"], g["notes"])):
+            db.upsert_goal_outcome(GoalOutcome(goal_id=goal.id, actual_hours=cur.actual_hours if cur else None,
+                                               met=g["met"], notes=g["notes"]))
+    return counts
+
+
+def _week_hours(db: TimesheetDB, weeks) -> dict:
+    return {w: round(sum(e.duration_hours for e in db.get_entries_for_week(w)), 2) for w in weeks}
+
+
+def import_excel(db: TimesheetDB, files: list[tuple[str, bytes]], mode: str = "keep",
+                 weeks: Optional[dict] = None) -> dict:
+    """Import Excel files written by earlier runs of the app.
+
+    files: (file name, content) pairs, applied in the given order.
+    mode:  "keep" leaves a day that already has different hours as it is;
+           "replace" puts the file's hours there.
+    weeks: {index in files: "YYYY-MM-DD"} for files with no date of their own.
+
+    A file that can't be read is reported and skipped; the others are
+    still imported. Returns a per-file summary and hours per affected week
+    before and after, for the Import tab's table and chart.
+    """
+    if mode not in IMPORT_MODES:
+        raise UserError("mode must be keep or replace")
+    weeks = weeks or {}
+    parsed, results = [], []
+    for i, (name, data) in enumerate(files):
+        chosen = weeks.get(str(i)) or weeks.get(i)
+        res = {"index": i, "name": name, "ok": False, "error": None, "needs_week": False, "warnings": []}
+        results.append(res)
+        try:
+            wb = parse_workbook(data, name, parse_week(chosen) if chosen else None)
+        except WeekNeeded as e:
+            res.update(error=str(e), needs_week=True)
+            continue
+        except ExcelImportError as e:
+            res["error"] = str(e)
+            continue
+        parsed.append((res, wb))
+
+    affected = set()
+    for _, wb in parsed:
+        affected |= {week_monday(e.date) for e in wb.entries}
+        if wb.week and (wb.reflection or wb.goals):
+            affected.add(wb.week)
+    before = _week_hours(db, affected)
+
+    for res, wb in parsed:
+        entry_weeks = sorted({week_monday(e.date) for e in wb.entries})
+        res.update(
+            ok=True, kind=wb.kind, warnings=wb.warnings, week_source=wb.week_source,
+            week_start=wb.week.isoformat() if wb.week else None,
+            weeks=[w.isoformat() for w in entry_weeks] or ([wb.week.isoformat()] if wb.week else []),
+            hours=round(sum(e.hours for e in wb.entries), 2),
+            entries=_import_entries(db, wb.entries, mode),
+            reflection=_import_reflection(db, wb.week, wb.reflection, mode) if wb.week else "none",
+            goals=_import_goals(db, wb.week, wb.goals, mode) if wb.week else {"new": 0, "existing": 0},
+        )
+
+    after = _week_hours(db, affected)
+    return {
+        "mode": mode,
+        "files": results,
+        "weeks": [{"week_start": w.isoformat(), "hours_before": before[w], "hours_after": after[w]}
+                  for w in sorted(affected)],
+    }
+
+
+def preview_import(db_path: Path, files: list[tuple[str, bytes]], mode: str = "keep",
+                   weeks: Optional[dict] = None) -> dict:
+    """What import_excel would do, without changing anything.
+
+    Runs the real import on a temporary copy of the database, so the
+    preview can't disagree with the import (two files touching the same
+    week, subjects created along the way, ...).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp) / "preview.db"
+        if Path(db_path).exists():
+            paths.copy_sqlite(Path(db_path), copy)
+        # Closed before the folder is deleted: Windows can't delete an open file.
+        with TimesheetDB(str(copy)) as d:
+            return import_excel(d, files, mode, weeks)

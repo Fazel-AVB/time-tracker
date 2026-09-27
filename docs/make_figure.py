@@ -8,7 +8,7 @@ port, data folder):
 
     python docs/make_figure.py
 
-Facts it mirrors, kept in sync by hand: the four tabs (tracker/web/static/
+Facts it mirrors, kept in sync by hand: the five tabs (tracker/web/static/
 index.html), the port 8766 (tracker/web/launcher.py DEFAULT_PORT), the data
 folder ~/.time_tracker (tracker/paths.py) and the module names in tracker/.
 """
@@ -54,9 +54,10 @@ a(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 
   'font-family="system-ui, -apple-system, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif">')
 a('<title>How Time Tracker works</title>')
 a('<desc>The desktop icon starts a small web server on this computer and opens its page in the browser. '
-  'The page has four tabs: Weekly Table, Weekly Report, Reflection and Goal Review. Every change goes to the '
+  'The page has five tabs: Weekly Table, Weekly Report, Reflection, Goal Review and Import. Every change goes to the '
   'server, which stores it in timesheet.db in the ~/.time_tracker folder and writes end-of-week Excel reports '
-  'there. Code updates come from GitHub with git pull and never touch that folder.</desc>')
+  'there; the Import tab reads such reports back in. Code updates come from GitHub with git pull and never touch '
+  'that folder.</desc>')
 a('<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
   f'<path d="M0,0 L10,5 L0,10 z" fill="{MUTED}"/></marker></defs>')
 # Own background, so the figure reads the same on GitHub's light and dark themes.
@@ -84,13 +85,15 @@ box(250, 330, 180, 96, "Desktop icon", ["time-tracker-gui", "starts the server,"
 arrow("M430,378 H466")
 
 # --- layer 1: the page
-layer(470, 154, "BROWSER PAGE", "http://127.0.0.1:8766 · four tabs, one week at a time", PAGE)
-tabs = [("Weekly Table", ["hours per subject and day,", "saved as you type"]),
-        ("Weekly Report", ["totals vs. your averages,", "charts, CSV"]),
-        ("Reflection", ["what went well, the plan,", "goals for next week"]),
-        ("Goal Review", ["met / partial / not met,", "checked vs. logged hours"])]
+layer(470, 154, "BROWSER PAGE", "http://127.0.0.1:8766 · five tabs", PAGE)
+# Five boxes of 142 with gaps of 9.5 fill x = 470…1218, the width of the layers below.
+tabs = [("Weekly Table", ["hours per subject", "and day"]),
+        ("Weekly Report", ["totals, averages,", "charts, CSV"]),
+        ("Reflection", ["the week in words,", "next week's goals"]),
+        ("Goal Review", ["met / partial /", "not met"]),
+        ("Import", ["Excel reports", "from earlier runs"])]
 for i, (title, lines) in enumerate(tabs):
-    box(470 + i * 191, 168, 175, 86, title, lines, PAGE, PAGE_SOFT)
+    box(470 + i * 151.5, 168, 142, 86, title, lines, PAGE, PAGE_SOFT)
 # Into web/app.py, the part that receives the page's requests.
 arrow("M585,256 V326", "every change, sent with a key", 596, 284)
 text(596, 299, "that changes at each start", 11, 400, MUTED)
@@ -107,9 +110,10 @@ box(1010, 330, 208, 96, "analytics.py", ["weekly totals, averages,", "goal sugge
 
 # --- layer 3: the data
 # Below the data, so the arrows into it cross no text.
-layer(740, 630, "YOUR DATA", "~/.time_tracker · updates never touch it", DATA)
+layer(750, 630, "YOUR DATA", "~/.time_tracker · updates never touch it", DATA)
 arrow("M855,426 V498")
-x, y, w, h = 740, 500, 230, 104
+# 750…960: centred under service.py (x=855), leaving a 50-wide gap for the import arrow.
+x, y, w, h = 750, 500, 210, 104
 a(f'<path d="M{x},{y+14} v{h-28} a{w/2},14 0 0 0 {w},0 v-{h-28}" fill="{DATA_SOFT}" stroke="{DATA}" stroke-width="1.5"/>')
 a(f'<ellipse cx="{x+w/2}" cy="{y+14}" rx="{w/2}" ry="14" fill="#f8fafc" stroke="{DATA}" stroke-width="1.5"/>')
 text(x + w / 2, y + 50, "timesheet.db", 15, 700, INK, "middle")
@@ -122,6 +126,8 @@ a(f'<path d="M{x},{y+10} h70 l10,-10 h{w-80} v{h} h-{w} z" fill="{DATA_SOFT}" st
 text(x + w / 2, y + 44, "history_exports/", 15, 700, INK, "middle")
 text(x + w / 2, y + 64, "an Excel report per week,", 12, 400, MUTED, "middle")
 text(x + w / 2, y + 80, "when you say yes at week's end", 12, 400, MUTED, "middle")
+# The round trip: the Import tab reads these reports (or any older ones) back into the database.
+arrow("M1008,566 H964", "import", 986, 556, "middle")
 
 # What crosses the edge
 x, y, w, h = 250, 500, 450, 104
@@ -137,6 +143,6 @@ for i, (label, s) in enumerate(rows):
     text(x + 66, yy, s, 12, 400, INK)
 
 text(40, 690, "Update: git pull in the clone. Your data in ~/.time_tracker stays as it is. "
-     "Commands: time-tracker, time-tracker shortcut, time-tracker where.", 12.5, 400, MUTED)
+     "Commands: time-tracker, time-tracker shortcut, time-tracker import-excel.", 12.5, 400, MUTED)
 a('</svg>')
 Path(__file__).with_name("architecture.svg").write_text("\n".join(out) + "\n", encoding="utf-8")

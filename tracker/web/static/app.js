@@ -41,11 +41,13 @@ class ServerStopped extends Error {}
 
 async function api(method, path, body) {
   let resp;
+  // FormData (file uploads) goes as-is: the browser sets the multipart header with its boundary.
+  const form = body instanceof FormData;
   try {
     resp = await fetch(path, {
       method,
-      headers: { "X-TT-Token": TOKEN, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers: { "X-TT-Token": TOKEN, ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}) },
+      body: body === undefined ? undefined : form ? body : JSON.stringify(body),
     });
   } catch (e) {
     showStopped();
@@ -118,7 +120,7 @@ function recall(key, fallback) { try { const v = localStorage.getItem(key); retu
 // state, navigation
 // ---------------------------------------------------------------------------
 
-const TABS = ["table", "report", "reflection", "goals"];
+const TABS = ["table", "report", "reflection", "goals", "import"];
 const state = { tab: "table", week: mondayOf(new Date()), dirty: false };
 
 function readHash() {
@@ -142,7 +144,11 @@ async function render() {
   TABS.forEach((t) => (document.getElementById(`tab-${t}`).hidden = t !== state.tab));
   document.getElementById("week-label").textContent = weekRange(state.week);
   document.getElementById("this-week").hidden = state.week === mondayOf(new Date());
-  const renderers = { table: renderTable, report: renderReport, reflection: renderReflection, goals: renderGoals };
+  // Import works on whole files, whatever week is selected.
+  const perWeek = state.tab !== "import";
+  document.getElementById("weeknav").hidden = !perWeek;
+  document.getElementById("banner").hidden = !perWeek;
+  const renderers = { table: renderTable, report: renderReport, reflection: renderReflection, goals: renderGoals, import: renderImport };
   await safely(() => renderers[state.tab](document.getElementById(`tab-${state.tab}`)));
 }
 
@@ -162,6 +168,7 @@ function renderBanner(season) {
 // ---------------------------------------------------------------------------
 
 let canOpenFolder = false;
+let reportFolders = [];  // /api/info: where earlier Excel reports may be (hint on the Import tab)
 
 async function renderExportPrompt() {
   const box = document.getElementById("export-prompt");
@@ -611,6 +618,120 @@ async function renderGoals(root) {
 }
 
 // ---------------------------------------------------------------------------
+// Import tab
+// ---------------------------------------------------------------------------
+
+// Kept across re-renders: the chosen files are sent again for the preview
+// after every change (mode, a week picked), and once more to import.
+const importState = { files: [], mode: "keep", weeks: {}, preview: null, result: null };
+
+function importForm() {
+  const fd = new FormData();
+  importState.files.forEach((f) => fd.append("files", f, f.name));
+  fd.append("mode", importState.mode);
+  fd.append("weeks", JSON.stringify(importState.weeks));
+  return fd;
+}
+
+async function refreshPreview() {
+  importState.result = null;
+  importState.preview = importState.files.length ? await api("POST", "/api/import/preview", importForm()) : null;
+  await render();
+}
+
+function fileSummary(f, done) {
+  if (!f.ok) return h("span", { class: "status-err" }, f.error);
+  const e = f.entries, parts = [];
+  parts.push(`${fmtHours(f.hours)} on ${e.new + e.same + e.different} day(s): ${e.new} new, ${e.same} already there`);
+  if (e.different) {
+    parts.push(importState.mode === "replace"
+      ? `${e.different} different → ${done ? "replaced" : "will be replaced"} by the file's hours`
+      : `${e.different} different → the app's hours ${done ? "were" : "are"} kept`);
+  }
+  const refl = { new: "new", same: "already there", kept: "the app's is kept", replaced: done ? "replaced" : "will be replaced" }[f.reflection];
+  if (refl) parts.push(`reflection: ${refl}`);
+  if (f.goals.new || f.goals.existing) parts.push(`goals: ${f.goals.new} new, ${f.goals.existing} already there`);
+  return h("span", {}, parts.join(" · "), f.warnings.map((w) => h("div", { class: "warn" }, `Note: ${w}`)));
+}
+
+function weekCell(f) {
+  if (f.ok) {
+    const src = { entries: "from the dates inside", "file name": "from the file name", chosen: "chosen by you" }[f.week_source] || "";
+    return h("span", {}, f.weeks.map((w) => h("div", {}, h("button", { class: "linklike", title: "Open this week's report", onclick: () => go("report", w) }, weekRange(w)))),
+      src ? h("div", { class: "warn" }, src) : null);
+  }
+  if (!f.needs_week) return "—";
+  // No date inside or in the name: ask. Any day of the week will do; the server snaps it to Monday.
+  return h("label", { class: "field" }, "Which week?", h("input", { type: "date", value: importState.weeks[f.index] || "",
+    onchange: (ev) => safely(async () => { importState.weeks[f.index] = ev.target.value; await refreshPreview(); }) }));
+}
+
+async function renderImport(root) {
+  const res = importState.result || importState.preview;
+  const done = Boolean(importState.result);
+  const input = h("input", { type: "file", accept: ".xlsx", multiple: true, onchange: (e) => pick(e.target.files) });
+  const pick = (list) => safely(async () => {
+    importState.files = [...list].filter((f) => f.name.toLowerCase().endsWith(".xlsx"));
+    importState.weeks = {};
+    if (!importState.files.length) throw new Error("Choose .xlsx files (Excel reports from Time Tracker).");
+    await refreshPreview();
+  });
+  const drop = h("label", { class: "drop" }, input,
+    h("div", {}, h("b", {}, "Choose Excel files"), " or drop them here"),
+    h("div", { class: "muted" }, importState.files.length ? `${importState.files.length} file(s) chosen` : "one or many; nothing changes until you press Import"));
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files); });
+
+  const modes = h("div", { class: "radios" }, [
+    ["keep", "Keep what's already in the app (only add what's missing)"],
+    ["replace", "Use the file's hours where they differ"],
+  ].map(([v, label]) => h("label", {}, h("input", { type: "radio", name: "import-mode", value: v, checked: importState.mode === v,
+    onchange: () => safely(async () => { importState.mode = v; await refreshPreview(); }) }), label)));
+
+  const parts = [
+    h("h3", {}, "Import Excel files from earlier runs"),
+    h("p", { class: "muted" }, "End-of-week reports (time_report_<date>.xlsx) and table downloads (timesheet_<date>.xlsx) are read back into the app: " +
+      "hours with their notes, and a report's reflection and goals. The week comes from the dates inside the file, otherwise from the date in its name. " +
+      "Importing the same file twice changes nothing."),
+    reportFolders.length ? h("p", { class: "muted paths" }, "Your reports are probably in: ", reportFolders.map((p, i) => [i ? " or " : "", h("code", {}, p)])) : null,
+    drop,
+    h("div", { class: "card", style: { marginTop: "1rem" } }, h("div", { class: "field" }, "When a day already has different hours in the app", modes)),
+  ];
+
+  if (res) {
+    const ok = res.files.filter((f) => f.ok).length;
+    parts.push(h("h3", {}, done ? "Imported" : "Preview: what will change"),
+      h("div", { class: "table-wrap" }, h("table", {},
+        h("thead", {}, h("tr", {}, h("th", {}, "File"), h("th", {}, "Week"), h("th", {}, done ? "Result" : "What happens"))),
+        h("tbody", {}, res.files.map((f) => h("tr", {}, h("td", {}, h("span", { class: f.ok ? "status-ok" : "status-err" }, f.ok ? "✓ " : "✗ "), f.name),
+          h("td", {}, weekCell(f)), h("td", {}, fileSummary(f, done))))))));
+    if (res.weeks.length) {
+      const chart = h("div", { class: "chart" });
+      Charts.bars(chart, res.weeks.map((w) => fmtDay(w.week_start)), [
+        { name: done ? "Before" : "Now", color: "#60A5FA", values: res.weeks.map((w) => w.hours_before) },
+        { name: "After import", color: "#7C3AED", values: res.weeks.map((w) => w.hours_after) },
+      ]);
+      parts.push(h("h3", {}, "Hours per week (week of …)"), h("div", { class: "card" }, chart),
+        h("p", { class: "muted" }, "Click a week in the table above to open its report."));
+    }
+    if (!done) {
+      parts.push(h("p", {}, h("button", { class: "btn primary", disabled: !ok, onclick: () => safely(async () => {
+        importState.result = await api("POST", "/api/import", importForm());
+        importState.preview = null;
+        const n = importState.result.files.filter((f) => f.ok).length;
+        flash(`Imported ${n} file(s). The Weekly Table, Report and Goal Review now include them.`, "ok");
+        await render();
+      }) }, ok ? `Import ${ok} file(s)` : "Nothing to import"), " ",
+      h("button", { class: "btn", onclick: () => { Object.assign(importState, { files: [], weeks: {}, preview: null }); render(); } }, "Clear")));
+    } else {
+      parts.push(h("p", {}, h("button", { class: "btn", onclick: () => { Object.assign(importState, { files: [], weeks: {}, result: null }); render(); } }, "Import more files")));
+    }
+  }
+  root.replaceChildren(...parts.filter(Boolean));
+}
+
+// ---------------------------------------------------------------------------
 // start
 // ---------------------------------------------------------------------------
 
@@ -632,6 +753,7 @@ async function start() {
   const meta = await safely(() => api("GET", "/api/info"));
   if (meta) {
     canOpenFolder = meta.can_open_folder;
+    reportFolders = meta.report_folders || [];
     document.getElementById("footer").textContent = `Time Tracker ${meta.version} · data: ${meta.db} · reports: ${meta.exports}`;
     if (meta.notice) flash(meta.notice, "info", null, true);
   }

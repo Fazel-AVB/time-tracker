@@ -21,6 +21,7 @@
       <button role="tab" data-tab="report">Weekly Report</button>
       <button role="tab" data-tab="reflection">Reflection</button>
       <button role="tab" data-tab="goals">Goal Review</button>
+      <button role="tab" data-tab="import">Import</button>
     </nav>
     <button id="quit" class="btn ghost small" title="Stop the app (it also stops by itself 10 minutes after you close this tab)">Quit</button>
   </header>
@@ -29,7 +30,7 @@
     <div id="flash" aria-live="polite"></div>
     <div id="export-prompt"></div>
     <div id="banner"></div>
-    <div class="weeknav">
+    <div class="weeknav" id="weeknav">
       <button id="prev" class="btn">← Prev</button>
       <div class="weeknav-mid">
         <h2 id="week-label"></h2>
@@ -41,6 +42,7 @@
     <section id="tab-report" class="tab" hidden></section>
     <section id="tab-reflection" class="tab" hidden></section>
     <section id="tab-goals" class="tab" hidden></section>
+    <section id="tab-import" class="tab" hidden></section>
   </main>
 
   <footer id="footer"></footer>
