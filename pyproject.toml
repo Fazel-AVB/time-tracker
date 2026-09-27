@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "time-tracker"
+# 0.1 was the Streamlit app (unversioned); 0.2 is the installable Flask app.
+version = "0.2.0"
+description = "Personal time, progress and reflection tracker that runs in your browser, entirely on your computer"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0",      # the local web page (tracker/web)
+    "pandas>=2.0",     # weekly tables and report aggregation (tracker/analytics.py)
+    "openpyxl>=3.1",   # Excel export
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+time-tracker = "tracker.cli:main"
+
+[project.gui-scripts]
+# On Windows, pip turns this into .venv\Scripts\time-tracker-gui.exe, which
+# starts without a console window: the thing the desktop shortcut points at.
+time-tracker-gui = "tracker.web.launcher:main"
+
+[tool.setuptools]
+packages = ["tracker", "tracker.web"]
+
+[tool.setuptools.package-data]
+# The page and the icons; served from inside the package.
+"tracker.web" = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

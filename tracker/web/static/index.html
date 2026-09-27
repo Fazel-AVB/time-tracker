@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Time Tracker</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Replaced by the server on every launch (app.py, TOKEN_PLACEHOLDER); app.js sends it with each request. -->
+  <meta name="tt-token" content="__TT_TOKEN__">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/logo.svg" alt="" class="logo">
+      <span>Time Tracker</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Pages">
+      <button role="tab" data-tab="table">Weekly Table</button>
+      <button role="tab" data-tab="report">Weekly Report</button>
+      <button role="tab" data-tab="reflection">Reflection</button>
+      <button role="tab" data-tab="goals">Goal Review</button>
+    </nav>
+    <button id="quit" class="btn ghost small" title="Stop the app (it also stops by itself 10 minutes after you close this tab)">Quit</button>
+  </header>
+
+  <main>
+    <div id="flash" aria-live="polite"></div>
+    <div id="export-prompt"></div>
+    <div id="banner"></div>
+    <div class="weeknav">
+      <button id="prev" class="btn">← Prev</button>
+      <div class="weeknav-mid">
+        <h2 id="week-label"></h2>
+        <button id="this-week" class="linklike" hidden>Back to this week</button>
+      </div>
+      <button id="next" class="btn">Next →</button>
+    </div>
+    <section id="tab-table" class="tab" hidden></section>
+    <section id="tab-report" class="tab" hidden></section>
+    <section id="tab-reflection" class="tab" hidden></section>
+    <section id="tab-goals" class="tab" hidden></section>
+  </main>
+
+  <footer id="footer"></footer>
+
+  <div id="stopped" class="overlay" hidden>
+    <div class="overlay-box">
+      <img src="/static/logo.svg" alt="" class="logo big">
+      <h2>Time Tracker has stopped</h2>
+      <p>Everything you entered is saved. Double-click the Time Tracker icon to start it again, then close this tab.</p>
+    </div>
+  </div>
+
+  <script src="/static/charts.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

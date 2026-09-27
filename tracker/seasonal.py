@@ -1,6 +1,6 @@
 """
-Seasonal banner utility.
-Returns an HTML banner reflecting the meteorological season of a given week.
+Seasonal banner theme.
+Returns the colours and emoji of the banner for the meteorological season of a given week.
 Seasons: Spring (Mar–May), Summer (Jun–Aug), Autumn (Sep–Nov), Winter (Dec–Feb).
 """
 from __future__ import annotations
@@ -63,52 +63,16 @@ def get_season(d: date) -> str:
     return "winter"
 
 
-def seasonal_banner(week_start: date) -> str:
+def season_theme(week_start: date) -> dict:
     """
-    Return an HTML string for a full-width seasonal banner.
-    week_start: the Monday of the week being viewed.
+    The banner shown above every tab for the week starting on week_start:
+    the theme's colours and emoji plus the week's label. The page
+    (tracker/web/static/app.js, renderBanner) draws it.
     """
-    key = get_season(week_start)
-    t = _THEMES[key]
+    t = _THEMES[get_season(week_start)]
     week_end = week_start + timedelta(days=6)
-    week_label = (
-        f"{week_start.strftime('%B %d')} – {week_end.strftime('%B %d, %Y')}"
-    )
-
-    return f"""
-<div style="
-    background: {t['gradient']};
-    border: 1px solid {t['border']};
-    border-radius: 14px;
-    padding: 16px 26px;
-    margin-bottom: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-">
-    <div style="display:flex; align-items:center; gap:14px;">
-        <span style="font-size:2.4rem; line-height:1;">{t['emoji']}</span>
-        <div>
-            <span style="
-                display: inline-block;
-                background: {t['tag_bg']};
-                color: {t['tag_color']};
-                font-size: 0.75rem;
-                font-weight: 700;
-                letter-spacing: 0.1em;
-                text-transform: uppercase;
-                padding: 2px 10px;
-                border-radius: 99px;
-                margin-bottom: 4px;
-            ">{t['name']}</span><br>
-            <span style="
-                font-size: 1.1rem;
-                font-weight: 600;
-                color: {t['text_color']};
-            ">Week of {week_label}</span>
-        </div>
-    </div>
-    <span style="font-size:1.7rem; letter-spacing:6px; opacity:0.85;">{t['decorations']}</span>
-</div>
-"""
+    return {
+        **t,
+        "key": get_season(week_start),
+        "week_label": f"{week_start.strftime('%B %d')} – {week_end.strftime('%B %d, %Y')}",
+    }

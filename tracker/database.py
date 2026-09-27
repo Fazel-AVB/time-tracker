@@ -110,6 +110,14 @@ class TimesheetDB:
                 PRIMARY KEY (week_start, subject_id)
             );
 
+            -- Rows added to a week's table that have no hours yet. Stored, not
+            -- kept in the browser, so a new row survives a page reload.
+            CREATE TABLE IF NOT EXISTS week_subject_pins (
+                week_start TEXT    NOT NULL,
+                subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+                PRIMARY KEY (week_start, subject_id)
+            );
+
             -- One row per finished week the user answered the export prompt
             -- for; a week with no row is still pending.
             CREATE TABLE IF NOT EXISTS week_exports (
@@ -307,6 +315,51 @@ class TimesheetDB:
             (week_start.isoformat(),),
         ).fetchall()
         return {r["subject_id"] for r in rows}
+
+    # ------------------------------------------------------------------ #
+    # Week-subject pins (rows added to a week before any hours are logged)
+    # ------------------------------------------------------------------ #
+
+    def add_week_pin(self, week_start: date, subject_id: int) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO week_subject_pins (week_start, subject_id) VALUES (?, ?)",
+            (week_start.isoformat(), subject_id),
+        )
+        self._conn.commit()
+
+    def remove_week_pin(self, week_start: date, subject_id: int) -> None:
+        self._conn.execute(
+            "DELETE FROM week_subject_pins WHERE week_start=? AND subject_id=?",
+            (week_start.isoformat(), subject_id),
+        )
+        self._conn.commit()
+
+    def get_pinned_subject_ids(self, week_start: date) -> set:
+        rows = self._conn.execute(
+            "SELECT subject_id FROM week_subject_pins WHERE week_start=?",
+            (week_start.isoformat(),),
+        ).fetchall()
+        return {r["subject_id"] for r in rows}
+
+    def move_entries_in_week(self, old_subject_id: int, new_subject_id: int, week_start: date) -> None:
+        """Reassign one week's entries to another subject (renaming a table row), keeping their notes."""
+        week_end = week_start + timedelta(days=7)
+        self._conn.execute(
+            "UPDATE time_entries SET subject_id=? WHERE subject_id=? AND date >= ? AND date < ?",
+            (new_subject_id, old_subject_id, week_start.isoformat(), week_end.isoformat()),
+        )
+        self._conn.commit()
+
+    def get_entry(self, entry_id: int) -> Optional[TimeEntry]:
+        row = self._conn.execute(
+            """
+            SELECT te.*, s.name AS subject_name, s.low_level_label, s.high_level_label
+            FROM time_entries te JOIN subjects s ON te.subject_id = s.id
+            WHERE te.id=?
+            """,
+            (entry_id,),
+        ).fetchone()
+        return _row_to_entry(row) if row else None
 
     def get_entries_for_week(self, week_start: date) -> List[TimeEntry]:
         week_end = week_start + timedelta(days=7)

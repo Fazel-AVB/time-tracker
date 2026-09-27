@@ -2,9 +2,10 @@
 End-of-week Excel report: which finished weeks still need the export prompt,
 and the .xlsx content for one week.
 
-No Streamlit imports (the prompt UI is tracker/export_prompt.py), so both
-functions are unit-tested in tests/test_week_report.py. The workbook is what
-history_exports/time_report_<monday>.xlsx contains.
+The prompt itself and the file write are in tracker/service.py
+(pending_export, export_week); both functions here are unit-tested in
+tests/test_week_report.py. The workbook is what
+~/.time_tracker/history_exports/time_report_<monday>.xlsx contains.
 """
 from __future__ import annotations
 

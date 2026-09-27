@@ -1,6 +1,11 @@
+# Data from versions before 0.2 (now in ~/.time_tracker); never commit it.
 data/
+history_exports/
 __pycache__/
 *.pyc
 *.pyo
 .DS_Store
-history_exports/
+.venv/
+*.egg-info/
+build/
+.pytest_cache/

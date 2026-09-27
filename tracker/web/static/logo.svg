@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Time Tracker">
+  <!-- Same design and colour as time_tracker.ico (the desktop shortcut icon): pencil + clock. -->
+  <rect width="256" height="256" rx="48" fill="#7F5FE1"/>
+  <g fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(66 128) rotate(32)">
+      <path d="M-15 -66 h30 v104 l-15 30 l-15 -30 z"/>
+      <path d="M-15 -46 h30"/>
+      <path d="M-15 38 h30"/>
+    </g>
+    <circle cx="180" cy="122" r="52"/>
+    <path d="M180 92 v32 h24"/>
+  </g>
+</svg>

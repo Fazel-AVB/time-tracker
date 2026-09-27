@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from tracker.seasonal import get_season, seasonal_banner
+from tracker.seasonal import get_season, season_theme
 
 
 class TestGetSeason:
@@ -34,21 +34,20 @@ class TestGetSeason:
         assert get_season(date(2026, 1, 15)) == "winter"
 
 
-class TestSeasonalBanner:
-    def test_returns_html_string(self):
-        banner = seasonal_banner(date(2026, 4, 20))
-        assert isinstance(banner, str)
-        assert "<div" in banner
+class TestSeasonTheme:
+    def test_spring_theme(self):
+        theme = season_theme(date(2026, 4, 20))
+        assert theme["key"] == "spring"
+        assert theme["name"] == "Spring"
 
-    def test_spring_banner_contains_spring_label(self):
-        banner = seasonal_banner(date(2026, 4, 20))
-        assert "Spring" in banner
+    def test_summer_theme(self):
+        assert season_theme(date(2026, 7, 6))["name"] == "Summer"
 
-    def test_summer_banner_contains_summer_label(self):
-        banner = seasonal_banner(date(2026, 7, 6))
-        assert "Summer" in banner
+    def test_week_label_spans_monday_to_sunday(self):
+        label = season_theme(date(2026, 4, 20))["week_label"]
+        assert "April 20" in label
+        assert "April 26, 2026" in label
 
-    def test_banner_contains_week_dates(self):
-        banner = seasonal_banner(date(2026, 4, 20))
-        assert "April 20" in banner
-        assert "April 26" in banner
+    def test_has_colours_for_the_page(self):
+        theme = season_theme(date(2026, 12, 7))
+        assert {"gradient", "text_color", "border", "tag_bg", "tag_color", "emoji", "decorations"} <= set(theme)

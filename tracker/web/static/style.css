@@ -1,0 +1,197 @@
+/* Palette carried over from the Streamlit theme (.streamlit/config.toml of v0.1). */
+:root {
+  --primary: #7C3AED;
+  --primary-dark: #4C1D95;
+  --primary-soft: #EDE9FE;
+  --bg: #F5F3FF;
+  --surface: #FFFFFF;
+  --text: #1E1B4B;
+  --muted: #6D28D9;
+  --border: #C4B5FD;
+  --blue: #60A5FA;
+  --ok: #047857;
+  --ok-bg: #D1FAE5;
+  --err: #B91C1C;
+  --err-bg: #FEE2E2;
+  --radius: 10px;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+[hidden] { display: none !important; }
+h1, h2, h3 { margin: 0; line-height: 1.25; }
+h3 { font-size: 1.1rem; margin: 1.6rem 0 .6rem; color: var(--primary-dark); }
+p { margin: .4rem 0; }
+.muted { color: var(--muted); font-size: .88rem; }
+
+/* --- top bar ----------------------------------------------------------- */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: .55rem 1.2rem; background: var(--primary-soft); border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: .55rem; font-weight: 700; font-size: 1.1rem; color: var(--primary-dark); }
+.logo { width: 34px; height: 34px; border-radius: 8px; }
+.logo.big { width: 72px; height: 72px; border-radius: 16px; }
+.tabs { display: flex; gap: .25rem; flex: 1; flex-wrap: wrap; }
+.tabs button {
+  border: 0; background: transparent; color: var(--primary-dark); font: inherit; font-weight: 600;
+  padding: .45rem .8rem; border-radius: 8px; cursor: pointer;
+}
+.tabs button:hover { background: #fff8; }
+.tabs button[aria-selected="true"] { background: var(--primary); color: #fff; }
+
+main { max-width: 1180px; margin: 0 auto; padding: 1rem 1.2rem 3rem; }
+footer { max-width: 1180px; margin: 0 auto; padding: 0 1.2rem 1.5rem; color: var(--muted); font-size: .8rem; }
+
+/* --- buttons and inputs ------------------------------------------------ */
+.btn {
+  font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px;
+  padding: .45rem .9rem; border: 1px solid var(--border); background: var(--surface); color: var(--primary-dark);
+}
+.btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--primary-dark); color: #fff; }
+.btn.ghost { background: transparent; }
+.btn.small { padding: .25rem .6rem; font-size: .85rem; }
+.btn.danger:hover:not(:disabled) { border-color: var(--err); color: var(--err); }
+.iconbtn {
+  border: 0; background: transparent; cursor: pointer; font-size: 1rem; padding: .15rem .35rem;
+  border-radius: 6px; color: var(--primary-dark); opacity: .6;
+}
+.iconbtn:hover { opacity: 1; background: var(--err-bg); color: var(--err); }
+.linklike { border: 0; background: none; color: var(--primary); cursor: pointer; font: inherit; font-size: .85rem; text-decoration: underline; }
+
+input, select, textarea {
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: .4rem .6rem; width: 100%;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
+textarea { min-height: 7rem; resize: vertical; }
+label.field { display: block; font-size: .85rem; font-weight: 600; color: var(--primary-dark); }
+label.field > input, label.field > select, label.field > textarea, label.field > .combo { margin-top: .25rem; font-weight: 400; }
+.form-row { display: grid; gap: .8rem; align-items: end; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.form-row .grow2 { grid-column: span 2; }
+.stack > * + * { margin-top: .8rem; }
+
+/* --- messages ---------------------------------------------------------- */
+#flash:empty { display: none; }
+.msg { display: flex; gap: .6rem; align-items: center; padding: .6rem .9rem; border-radius: var(--radius); margin-bottom: .8rem; border-left: 4px solid var(--primary); background: var(--surface); }
+.msg.ok { background: var(--ok-bg); border-color: var(--ok); }
+.msg.err { background: var(--err-bg); border-color: var(--err); }
+.msg .grow { flex: 1; overflow-wrap: anywhere; }
+.info { padding: .7rem .9rem; border-radius: var(--radius); background: var(--primary-soft); border-left: 4px solid var(--primary); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+.prompt { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-bottom: 1rem; border-color: var(--primary); }
+.prompt .grow { flex: 1; min-width: 240px; }
+
+/* --- seasonal banner and week navigation ------------------------------- */
+.banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  border-radius: 14px; padding: 14px 24px; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,.07); border: 1px solid;
+}
+.banner .left { display: flex; align-items: center; gap: 14px; }
+.banner .emoji { font-size: 2.2rem; line-height: 1; }
+.banner .tag { display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 2px 10px; border-radius: 99px; margin-bottom: 4px; }
+.banner .title { font-size: 1.05rem; font-weight: 600; }
+.banner .deco { font-size: 1.5rem; letter-spacing: 6px; opacity: .85; }
+@media (max-width: 640px) { .banner .deco { display: none; } }
+
+.weeknav { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; margin-bottom: 1.2rem; }
+.weeknav-mid { text-align: center; }
+.weeknav h2 { font-size: 1.3rem; }
+
+/* --- tables -------------------------------------------------------------- */
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: .35rem .5rem; text-align: left; border-bottom: 1px solid var(--primary-soft); vertical-align: middle; }
+thead th { background: var(--primary-soft); color: var(--primary-dark); font-weight: 600; font-size: .85rem; white-space: nowrap; }
+th.num, td.num { text-align: right; }
+tr:last-child td { border-bottom: 0; }
+
+table.grid input { border-color: transparent; background: transparent; padding: .3rem .4rem; border-radius: 6px; }
+table.grid input:hover { border-color: var(--border); }
+table.grid input:focus { background: var(--surface); }
+table.grid input.day { text-align: right; min-width: 4.2rem; }
+table.grid input.name { min-width: 9rem; }
+table.grid input.label { min-width: 7rem; }
+table.grid td.total { font-weight: 700; color: var(--primary); text-align: right; white-space: nowrap; }
+table.grid th .date { display: block; font-weight: 400; font-size: .72rem; opacity: .75; }
+table.grid tfoot td { background: var(--primary); color: #fff; font-weight: 700; text-align: right; }
+table.grid tfoot td.caption { text-align: center; letter-spacing: .05em; }
+table.grid input.saved { animation: saved 1s ease-out; }
+@keyframes saved { from { background: var(--ok-bg); } to { background: transparent; } }
+table.grid input.bad { background: var(--err-bg); }
+.below-table { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: .5rem; }
+
+details.panel { margin-top: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+details.panel > summary { cursor: pointer; padding: .7rem 1rem; font-weight: 600; color: var(--primary-dark); }
+details.panel > .body { padding: 0 1rem 1rem; }
+
+.subject-list { list-style: none; padding: 0; margin: 0; }
+.subject-list li { display: flex; align-items: center; gap: .8rem; padding: .35rem 0; border-bottom: 1px solid var(--primary-soft); }
+.subject-list li:last-child { border-bottom: 0; }
+.subject-list .grow { flex: 1; }
+
+/* --- combobox (New subject) --------------------------------------------- */
+.combo { position: relative; }
+/* Floating, not inline: an inline list collapsing on blur would shift the
+   Add button between mousedown and click, and the click would be lost. */
+.combo-list {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin: .25rem 0 0; padding: .25rem 0;
+  list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12); max-height: 13rem; overflow-y: auto;
+}
+.combo-item { display: flex; align-items: center; justify-content: space-between; padding: .3rem .75rem; cursor: pointer; }
+.combo-item.active, .combo-item:hover { background: var(--primary-soft); }
+.combo-empty { padding: .3rem .75rem; opacity: .6; font-size: .875rem; }
+
+/* --- report ------------------------------------------------------------- */
+.controls { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; margin-bottom: 1rem; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: .35rem .8rem; font: inherit; cursor: pointer; color: var(--primary-dark); }
+.seg button[aria-pressed="true"] { background: var(--primary); color: #fff; }
+input[type=range] { width: 180px; padding: 0; border: 0; accent-color: var(--primary); vertical-align: middle; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .8rem; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .8rem 1rem; }
+.tile .k { font-size: .82rem; color: var(--muted); }
+.tile .v { font-size: 1.5rem; font-weight: 700; color: var(--primary); overflow-wrap: anywhere; }
+.tile .d { font-size: .85rem; }
+.up { color: var(--ok); } .down { color: var(--err); }
+blockquote { margin: 1rem 0; padding: .6rem 1rem; border-left: 4px solid var(--primary); color: var(--primary-dark); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart text { font-family: inherit; fill: var(--text); }
+.swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; margin-right: .4rem; vertical-align: -1px; }
+
+/* --- goals ---------------------------------------------------------------- */
+.badge { display: inline-block; color: #fff; padding: 2px 10px; border-radius: 4px; font-size: .82rem; white-space: nowrap; }
+.goal-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: .6rem; }
+.radios { display: flex; gap: 1rem; flex-wrap: wrap; }
+.radios label { display: inline-flex; gap: .3rem; align-items: center; cursor: pointer; }
+.radios input { width: auto; accent-color: var(--primary); }
+.goal-list { list-style: none; padding: 0; margin: 0; }
+.goal-list li { display: grid; grid-template-columns: 3fr 1.3fr 1.5fr auto; gap: .8rem; align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--primary-soft); }
+
+/* --- overlay (app stopped) ------------------------------------------------ */
+.overlay { position: fixed; inset: 0; z-index: 100; background: rgba(30,27,75,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.overlay-box { background: var(--surface); border-radius: 16px; padding: 2rem; max-width: 440px; text-align: center; }
+.overlay-box h2 { margin: 1rem 0 .5rem; }
+
+@media (max-width: 640px) {
+  main { padding: 1rem 16px 3rem; }
+  .topbar { padding: .5rem 16px; gap: .4rem; }
+  .brand { flex: 1; }
+  /* Tabs on their own line, scrolling sideways instead of stacking. */
+  .tabs { order: 3; flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; }
+  .tabs button { white-space: nowrap; }
+  .weeknav { grid-template-columns: 1fr 1fr; }
+  .weeknav-mid { grid-column: 1 / -1; grid-row: 1; }
+  .goal-list li { grid-template-columns: 1fr auto; }
+  .form-row .grow2 { grid-column: auto; }
+}

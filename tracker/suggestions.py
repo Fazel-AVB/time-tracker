@@ -1,10 +1,10 @@
 """
 Suggestion lists for the Subject / Low Label / High Label pickers.
 
-The Weekly Table offers previously used values as dropdown options, both inside
-the grid and in the "New subject" form. This module builds those lists from the
-stored subjects and snaps free-typed input onto an existing spelling. No
-Streamlit imports: pure functions, unit-tested in tests/test_suggestions.py.
+The Weekly Table's "New subject" boxes offer previously used values. This
+module builds those lists from the stored subjects and snaps free-typed input
+onto an existing spelling. Pure functions, unit-tested in
+tests/test_suggestions.py.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from tracker.models import Subject
 HIDDEN_SETTING_KEY = "hidden_suggestions"
 
 # Grid column name -> Subject attribute. The column names are the ones built by
-# analytics.week_pivot and pages/1_Weekly_Table.py.
+# analytics.week_pivot and the "New subject" boxes (tracker/web/static/app.js).
 SUGGESTION_FIELDS = {
     "Subject": "name",
     "Low Label": "low_level_label",
